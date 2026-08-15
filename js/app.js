@@ -1,6 +1,6 @@
-/**
- * 3D Text STL Studio — Core Application Logic for GitHub Pages
- */
+// Optional Cloudflare Worker / Private Proxy URL
+// Live Deployed Worker: https://3d-text-generator.alan-rosenthal.workers.dev
+window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev';
 
 (function () {
   'use strict';
@@ -61,6 +61,13 @@
     }
   });
 
+  function updateFontStatusText(name) {
+    const elSub = document.getElementById('drop-sub');
+    if (elSub) elSub.textContent = `Active Font: ${name}`;
+    const elPri = document.getElementById('drop-primary');
+    if (elPri) elPri.textContent = name;
+  }
+
   // Load zero-fetch embedded font directly from RAM (100% file:// protocol safe!)
   function loadEmbeddedFont(fontKey = 'arial') {
     const key = fontKey || 'arial';
@@ -75,7 +82,7 @@
         }
         parsedFont = opentype.parse(bytes.buffer);
         fontName = item.name;
-        document.getElementById('drop-primary').textContent = `Font: ${item.name} (Embedded)`;
+        updateFontStatusText(item.name);
         setStatus(`Loaded: ${item.name}`);
         update3DMesh();
         return true;
@@ -92,7 +99,7 @@
         }
         parsedFont = opentype.parse(bytes.buffer);
         fontName = 'Arial Bold';
-        document.getElementById('drop-primary').textContent = 'Font: Arial Bold (Embedded)';
+        updateFontStatusText('Arial Bold');
         setStatus('Font ready');
         update3DMesh();
         return true;
@@ -161,35 +168,39 @@
     renderer.setSize(width, height);
   }
 
-  // Setup Drag & Drop and File Upload
+  // Setup Card 1 Font Control Listeners
   function setupDropzone() {
     const dropzone = document.getElementById('font-dropzone');
     const fileInput = document.getElementById('font-file-input');
 
-    dropzone.addEventListener('click', () => fileInput.click());
+    if (dropzone && fileInput) {
+      dropzone.addEventListener('click', () => fileInput.click());
 
-    dropzone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropzone.classList.add('drag-over');
-    });
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('drag-over');
+      });
 
-    dropzone.addEventListener('dragleave', () => {
-      dropzone.classList.remove('drag-over');
-    });
+      dropzone.addEventListener('dragleave', () => {
+        dropzone.classList.remove('drag-over');
+      });
 
-    dropzone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropzone.classList.remove('drag-over');
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleFontFile(e.dataTransfer.files[0]);
-      }
-    });
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('drag-over');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleFontFile(e.dataTransfer.files[0]);
+        }
+      });
+    }
 
-    fileInput.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files.length > 0) {
-        handleFontFile(e.target.files[0]);
-      }
-    });
+    if (fileInput) {
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          handleFontFile(e.target.files[0]);
+        }
+      });
+    }
 
     // Standard Web Fonts Dropdown (100% RAM Embedded)
     const selectGoogleFont = document.getElementById('select-google-font');
@@ -202,14 +213,14 @@
       });
     }
 
-    // daFont Custom URL Importer Button & Enter Key Listener
+    // 2. daFont Custom URL / Name Importer
     const btnImportUrl = document.getElementById('btn-import-url');
     const dafontUrlInput = document.getElementById('dafont-url-input');
 
     const triggerImport = () => {
       const urlInput = dafontUrlInput ? dafontUrlInput.value.trim() : '';
       if (!urlInput) {
-        alert('Please paste a daFont link, slug, or ZIP URL.');
+        alert('Please paste a daFont link, font name, or ZIP URL.');
         return;
       }
       importFromDafontURL(urlInput);
@@ -224,6 +235,24 @@
         }
       });
     }
+
+    // 3. Upload Custom Font Button
+    const btnUploadFont = document.getElementById('btn-upload-font');
+    if (btnUploadFont && fileInput) {
+      btnUploadFont.addEventListener('click', () => fileInput.click());
+    }
+
+    // 4. Clear / Reset to Default Font Button
+    const btnResetFont = document.getElementById('btn-reset-default-font');
+    if (btnResetFont) {
+      btnResetFont.addEventListener('click', () => {
+        if (selectGoogleFont) selectGoogleFont.value = 'arial';
+        if (dafontUrlInput) dafontUrlInput.value = '';
+        if (fileInput) fileInput.value = '';
+        loadEmbeddedFont('arial');
+        setStatus('Reset to default font');
+      });
+    }
   }
 
   // Handle local TTF / OTF font file
@@ -234,8 +263,7 @@
     }
 
     fontName = file.name.replace(/\.(ttf|otf)$/i, '');
-    document.getElementById('drop-primary').textContent = `Loaded: ${file.name}`;
-    document.getElementById('drop-sub').textContent = 'Click or drop another file to replace';
+    updateFontStatusText(file.name);
 
     showLoader('Parsing font file...');
     const reader = new FileReader();
@@ -277,42 +305,66 @@
     showLoader(`Fetching ${displayName}...`);
 
     try {
-      let response = null;
-      const proxies = [
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(zipUrl)}`,
-        `https://corsproxy.io/?${encodeURIComponent(zipUrl)}`,
-        `https://proxy.cors.sh/${zipUrl}`
-      ];
+      let arrayBuffer = null;
+
+      const proxies = [];
+
+      if (window.CUSTOM_PROXY_URL) {
+        const cleanWorker = window.CUSTOM_PROXY_URL.trim().replace(/\/+$/, '');
+        proxies.push(`${cleanWorker}?f=${encodeURIComponent(slug)}`);
+        proxies.push(`${cleanWorker}?url=${encodeURIComponent(zipUrl)}`);
+      }
+
+      proxies.push(`https://corsproxy.io/?${encodeURIComponent(zipUrl)}`);
+      proxies.push(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(zipUrl)}`);
+      proxies.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(zipUrl)}`);
+      proxies.push(`https://thingproxy.freeboard.io/fetch/${zipUrl}`);
 
       for (const proxy of proxies) {
         try {
-          response = await fetch(proxy);
-          if (response && response.ok) break;
+          const res = await fetch(proxy);
+          if (res && res.ok) {
+            const buf = await res.arrayBuffer();
+            if (buf && buf.byteLength > 100) {
+              const head = new Uint8Array(buf.slice(0, 4));
+              const isZip = (head[0] === 0x50 && head[1] === 0x4B); // PK
+              const isFont = (
+                (head[0] === 0x4F && head[1] === 0x54 && head[2] === 0x54 && head[3] === 0x4F) || // OTTO
+                (head[0] === 0x00 && head[1] === 0x01 && head[2] === 0x00 && head[3] === 0x00) || // TTF
+                (head[0] === 0x74 && head[1] === 0x72 && head[2] === 0x75 && head[3] === 0x65)    // true
+              );
+
+              if (isZip || isFont) {
+                arrayBuffer = buf;
+                break;
+              }
+            }
+          }
         } catch {
           // try next proxy
         }
       }
 
-      if (!response || !response.ok) {
-        throw new Error('Could not download font package via CORS proxies.');
+      if (!arrayBuffer) {
+        throw new Error('Could not retrieve font package from daFont servers via CORS proxies.');
       }
 
-      const arrayBuffer = await response.arrayBuffer();
-
-      // Check magic bytes to see if response is raw TTF/OTF font file
-      const firstBytes = new Uint8Array(arrayBuffer.slice(0, 4));
-      const magic = String.fromCharCode(...firstBytes);
+      const head = new Uint8Array(arrayBuffer.slice(0, 4));
+      const isFont = (
+        (head[0] === 0x4F && head[1] === 0x54 && head[2] === 0x54 && head[3] === 0x4F) ||
+        (head[0] === 0x00 && head[1] === 0x01 && head[2] === 0x00 && head[3] === 0x00) ||
+        (head[0] === 0x74 && head[1] === 0x72 && head[2] === 0x75 && head[3] === 0x65)
+      );
 
       showLoader('Parsing font glyphs...');
 
-      if (magic === 'OTTO' || magic === '\x00\x01\x00\x00' || magic === 'true' || magic.startsWith('\x00\x01')) {
+      if (isFont) {
         parsedFont = opentype.parse(arrayBuffer);
       } else {
-        // Extract from ZIP
+        // Extract from ZIP package
         const zip = await JSZip.loadAsync(arrayBuffer);
         let fontZipFile = null;
 
-        // Search for TTF / OTF inside ZIP
         for (const filename of Object.keys(zip.files)) {
           if (!zip.files[filename].dir && !filename.startsWith('__MACOSX') && !filename.startsWith('._')) {
             const lower = filename.toLowerCase();
@@ -330,14 +382,14 @@
       }
 
       fontName = displayName;
-      document.getElementById('drop-primary').textContent = `daFont: ${displayName}`;
+      updateFontStatusText(`daFont: ${displayName}`);
       hideLoader();
       setStatus(`Imported: ${displayName}`);
       update3DMesh();
     } catch (err) {
       console.error('daFont import error:', err);
       hideLoader();
-      alert(`Could not import daFont "${displayName}": ${err.message}\n\nTip: You can download the ZIP directly from daFont and drag the .TTF file into the dropzone!`);
+      alert(`Could not import daFont "${displayName}": ${err.message}\n\nTip: You can download the ZIP directly from daFont and click "Browse / Upload Custom Font" to select the .TTF file!`);
     }
   }
 
@@ -362,7 +414,7 @@
       const fontBuffer = await response.arrayBuffer();
       parsedFont = opentype.parse(fontBuffer);
       fontName = name;
-      document.getElementById('drop-primary').textContent = `Font: ${name}`;
+      updateFontStatusText(name);
       hideLoader();
       setStatus(`Loaded: ${name}`);
       update3DMesh();
@@ -625,6 +677,84 @@
     if (colorBase) colorBase.value = params.baseColor;
   }
 
+  // Mirror 2D curve on X axis (x -> -x) with curve direction reversal to preserve 2D winding orientation
+  function mirrorCurve2DX(curve) {
+    if (curve.isLineCurve) {
+      return new THREE.LineCurve(
+        new THREE.Vector2(-curve.v2.x, curve.v2.y),
+        new THREE.Vector2(-curve.v1.x, curve.v1.y)
+      );
+    } else if (curve.isQuadraticBezierCurve) {
+      const p0 = curve.v0 || curve.v1;
+      const p1 = curve.v1 || curve.v2;
+      const p2 = curve.v2;
+      return new THREE.QuadraticBezierCurve(
+        new THREE.Vector2(-p2.x, p2.y),
+        new THREE.Vector2(-p1.x, p1.y),
+        new THREE.Vector2(-p0.x, p0.y)
+      );
+    } else if (curve.isCubicBezierCurve) {
+      const p0 = curve.v0 || curve.v1;
+      const p1 = curve.v1 || curve.v2;
+      const p2 = curve.v2 || curve.v3;
+      const p3 = curve.v3;
+      return new THREE.CubicBezierCurve(
+        new THREE.Vector2(-p3.x, p3.y),
+        new THREE.Vector2(-p2.x, p2.y),
+        new THREE.Vector2(-p1.x, p1.y),
+        new THREE.Vector2(-p0.x, p0.y)
+      );
+    }
+    return curve;
+  }
+
+  // Mirror 2D THREE.Shape on X axis
+  function mirrorShape2DX(shape) {
+    const newShape = new THREE.Shape();
+    for (let i = shape.curves.length - 1; i >= 0; i--) {
+      newShape.curves.push(mirrorCurve2DX(shape.curves[i]));
+    }
+    shape.holes.forEach(h => {
+      const newHole = new THREE.Path();
+      for (let j = h.curves.length - 1; j >= 0; j--) {
+        newHole.curves.push(mirrorCurve2DX(h.curves[j]));
+      }
+      newShape.holes.push(newHole);
+    });
+    return newShape;
+  }
+
+  // Translate 2D vector curve by (dx, dy)
+  function translateCurve2D(curve, dx, dy) {
+    if (curve.isLineCurve) {
+      return new THREE.LineCurve(
+        new THREE.Vector2(curve.v1.x + dx, curve.v1.y + dy),
+        new THREE.Vector2(curve.v2.x + dx, curve.v2.y + dy)
+      );
+    } else if (curve.isQuadraticBezierCurve) {
+      const p0 = curve.v0 || curve.v1;
+      const p1 = curve.v1 || curve.v2;
+      const p2 = curve.v2;
+      return new THREE.QuadraticBezierCurve(
+        new THREE.Vector2(p0.x + dx, p0.y + dy),
+        new THREE.Vector2(p1.x + dx, p1.y + dy),
+        new THREE.Vector2(p2.x + dx, p2.y + dy)
+      );
+    } else if (curve.isCubicBezierCurve) {
+      const p0 = curve.v0 || curve.v1;
+      const p1 = curve.v1 || curve.v2;
+      const p2 = curve.v2 || curve.v3;
+      const p3 = curve.v3;
+      return new THREE.CubicBezierCurve(
+        new THREE.Vector2(p0.x + dx, p0.y + dy),
+        new THREE.Vector2(p1.x + dx, p1.y + dy),
+        new THREE.Vector2(p2.x + dx, p2.y + dy),
+        new THREE.Vector2(p3.x + dx, p3.y + dy)
+      );
+    }
+    return curve;
+  }
+
   // Update 3D Text Geometry
   function update3DMesh() {
     if (!scene || !parsedFont || !params.text) return;
@@ -637,114 +767,225 @@
 
     currentGroup = new THREE.Group();
 
-    // 1. Convert opentype glyph paths to Three.js Shapes (with 2D horizontal mirror support)
-    const shapes = opentypeToThreeShapes(parsedFont, params.text, params.fontSize, params.mirrorText);
-    if (!shapes || shapes.length === 0) return;
+    // 1. Convert opentype glyph paths to Three.js Shapes
+    const rawShapes = opentypeToThreeShapes(parsedFont, params.text, params.fontSize);
+    if (!rawShapes || rawShapes.length === 0) return;
+
+    // Compute 2D bounding box across all raw shapes to determine exact text center
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    rawShapes.forEach(s => {
+      const pts = s.getPoints(12);
+      pts.forEach(p => {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      });
+    });
+
+    const centerX = (maxX + minX) / 2;
+    const centerY = (maxY + minY) / 2;
+    const textWidth = maxX - minX;
+    const textHeight = maxY - minY;
+
+    // Create 2D shapes centered around (0, 0)
+    let shapes = rawShapes.map(s => {
+      const cShape = new THREE.Shape();
+      cShape.curves = s.curves.map(c => translateCurve2D(c, -centerX, -centerY));
+      s.holes.forEach(h => {
+        const cHole = new THREE.Path();
+        cHole.curves = h.curves.map(c => translateCurve2D(c, -centerX, -centerY));
+        cShape.holes.push(cHole);
+      });
+      return cShape;
+    });
+
+    if (params.mirrorText) {
+      shapes = shapes.map(s => mirrorShape2DX(s));
+    }
 
     const isEngraved = (params.fillMode === 'engraved');
     const totalBaseDepth = params.baseplateThickness;
-    const textDepth = isEngraved ? Math.min(params.extrudeDepth, totalBaseDepth * 0.6) : params.extrudeDepth;
-
-    const extrudeSettings = {
-      depth: textDepth,
-      bevelEnabled: false
-    };
-
-    const textGeometry = new THREE.ExtrudeGeometry(shapes, extrudeSettings);
-    textGeometry.computeBoundingBox();
-    const bbox = textGeometry.boundingBox;
-    const textWidth = bbox.max.x - bbox.min.x;
-    const textHeight = bbox.max.y - bbox.min.y;
-
-    // Center text on X and Y axes only so extrusion goes strictly upwards in +Z direction
-    const centerX = (bbox.max.x + bbox.min.x) / 2;
-    const centerY = (bbox.max.y + bbox.min.y) / 2;
-    textGeometry.translate(-centerX, -centerY, 0);
-
-    // Material setup
-    const textMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(params.textColor),
-      roughness: 0.3,
-      metalness: 0.2
-    });
-
-    const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
     if (isEngraved) {
-      // Engraved: carved/recessed into the top surface of the baseplate
-      textMesh.position.z = params.baseplateEnabled ? Math.max(0.1, totalBaseDepth - textDepth) : 0;
-    } else {
-      // Embossed: raised on top of the baseplate
-      textMesh.position.z = params.baseplateEnabled ? totalBaseDepth : 0;
-    }
+      // --- ENGRAVED (CARVED) MODE ---
+      const recessDepth = Math.min(params.extrudeDepth, totalBaseDepth * 0.7);
+      const floorThickness = Math.max(0.2, totalBaseDepth - recessDepth);
 
-    currentGroup.add(textMesh);
-
-    // 2. Baseplate Mesh
-    if (params.baseplateEnabled) {
-      const pad = params.baseplatePadding;
-      const baseWidth = textWidth + (pad * 2);
-      const baseHeight = textHeight + (pad * 2);
-
-      const hw = baseWidth / 2;
-      const hh = baseHeight / 2;
-      const rad = Math.min(params.baseplateRadius, Math.min(hw, hh));
-
-      const baseShape = new THREE.Shape();
-      baseShape.moveTo(-hw + rad, -hh);
-      baseShape.lineTo(hw - rad, -hh);
-      baseShape.quadraticCurveTo(hw, -hh, hw, -hh + rad);
-      baseShape.lineTo(hw, hh - rad);
-      baseShape.quadraticCurveTo(hw, hh, hw - rad, hh);
-      baseShape.lineTo(-hw + rad, hh);
-      baseShape.quadraticCurveTo(-hw, hh, -hw, hh - rad);
-      baseShape.lineTo(-hw, -hh + rad);
-      baseShape.quadraticCurveTo(-hw, -hh, -hw + rad, -hh);
-
-      const spec = threadStandards[params.threadStandard] || threadStandards['1/4-20'];
-      const majorDia = spec.majorDia + params.mountHoleOffset;
-      const majorR = majorDia / 2;
-      const outerPlugR = majorR + 1.0; // Solid plug outer wall radius
-      const holeDepth = totalBaseDepth * params.mountHoleDepthRatio;
-
-      if (params.mountHoleEnabled) {
-        const holePath = new THREE.Path();
-        holePath.absarc(0, 0, outerPlugR, 0, Math.PI * 2, true);
-        baseShape.holes.push(holePath);
-      }
-
-      const baseGeometry = new THREE.ExtrudeGeometry(baseShape, {
-        depth: totalBaseDepth,
-        bevelEnabled: false
+      // 1. Recessed Letter Floor Inlay Mesh (Z = floorThickness)
+      const floorGeometry = new THREE.ExtrudeGeometry(shapes, { depth: 0.05, bevelEnabled: false });
+      const textMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(params.textColor),
+        roughness: 0.3,
+        metalness: 0.2
       });
+      const textMesh = new THREE.Mesh(floorGeometry, textMaterial);
+      textMesh.position.z = params.baseplateEnabled ? floorThickness : 0;
+      currentGroup.add(textMesh);
 
-      const baseMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(params.baseColor),
-        roughness: 0.4,
-        metalness: 0.1
-      });
+      // 2. Baseplate Mesh
+      if (params.baseplateEnabled) {
+        const pad = params.baseplatePadding;
+        const baseWidth = textWidth + (pad * 2);
+        const baseHeight = textHeight + (pad * 2);
 
-      const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
-      currentGroup.add(baseMesh);
+        const hw = baseWidth / 2;
+        const hh = baseHeight / 2;
+        const rad = Math.min(params.baseplateRadius, Math.min(hw, hh));
 
-      if (params.mountHoleEnabled) {
-        // Blind Hole Cap Disc on front face if depthRatio < 100%
-        const capDepth = totalBaseDepth - holeDepth;
-        if (capDepth > 0.001) {
-          const capShape = new THREE.Shape();
-          capShape.absarc(0, 0, outerPlugR, 0, Math.PI * 2, false);
-          const capGeometry = new THREE.ExtrudeGeometry(capShape, {
-            depth: capDepth,
-            bevelEnabled: false
-          });
-          const capMesh = new THREE.Mesh(capGeometry, baseMaterial);
-          capMesh.position.z = holeDepth;
-          currentGroup.add(capMesh);
+        const baseShape = new THREE.Shape();
+        baseShape.moveTo(-hw + rad, -hh);
+        baseShape.lineTo(hw - rad, -hh);
+        baseShape.quadraticCurveTo(hw, -hh, hw, -hh + rad);
+        baseShape.lineTo(hw, hh - rad);
+        baseShape.quadraticCurveTo(hw, hh, hw - rad, hh);
+        baseShape.lineTo(-hw + rad, hh);
+        baseShape.quadraticCurveTo(-hw, hh, -hw, hh - rad);
+        baseShape.lineTo(-hw, -hh + rad);
+        baseShape.quadraticCurveTo(-hw, -hh, -hw + rad, -hh);
+
+        const spec = threadStandards[params.threadStandard] || threadStandards['1/4-20'];
+        const majorDia = spec.majorDia + params.mountHoleOffset;
+        const majorR = majorDia / 2;
+        const outerPlugR = majorR + 1.0;
+        const holeDepth = totalBaseDepth * params.mountHoleDepthRatio;
+
+        const baseMaterial = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(params.baseColor),
+          roughness: 0.4,
+          metalness: 0.1
+        });
+
+        // A. Bottom Solid Baseplate Floor (Z=0 to Z=floorThickness)
+        const bottomShape = new THREE.Shape();
+        bottomShape.curves = baseShape.curves;
+        if (params.mountHoleEnabled) {
+          const holePath = new THREE.Path();
+          holePath.absarc(0, 0, outerPlugR, 0, Math.PI * 2, true);
+          bottomShape.holes.push(holePath);
+        }
+        const bottomGeometry = new THREE.ExtrudeGeometry(bottomShape, { depth: floorThickness, bevelEnabled: false });
+        const bottomMesh = new THREE.Mesh(bottomGeometry, baseMaterial);
+        bottomMesh.position.z = 0;
+        currentGroup.add(bottomMesh);
+
+        // B. Top Carved Baseplate Walls (Z=floorThickness to Z=totalBaseDepth)
+        const topBaseShape = new THREE.Shape();
+        topBaseShape.curves = baseShape.curves;
+        shapes.forEach(s => {
+          const letterHole = new THREE.Path();
+          letterHole.curves = s.curves;
+          topBaseShape.holes.push(letterHole);
+        });
+        if (params.mountHoleEnabled) {
+          const holePath = new THREE.Path();
+          holePath.absarc(0, 0, outerPlugR, 0, Math.PI * 2, true);
+          topBaseShape.holes.push(holePath);
         }
 
-        // 100% Watertight Solid Helical Threaded Socket Plug (0 Open Edges in PrusaSlicer!)
-        const threadSocketMesh = createThreadedSocketMesh(holeDepth, spec, params.mountHoleOffset, baseMaterial);
-        currentGroup.add(threadSocketMesh);
+        const topGeometry = new THREE.ExtrudeGeometry(topBaseShape, { depth: recessDepth, bevelEnabled: false });
+        const topMesh = new THREE.Mesh(topGeometry, baseMaterial);
+        topMesh.position.z = floorThickness;
+        currentGroup.add(topMesh);
+
+        // C. Inner Island Pillars for letters with holes ('A', 'B', 'P', 'R', 'g', 'o')
+        shapes.forEach(s => {
+          s.holes.forEach(h => {
+            const islandShape = new THREE.Shape(h.curves);
+            const islandGeometry = new THREE.ExtrudeGeometry(islandShape, { depth: recessDepth, bevelEnabled: false });
+            const islandMesh = new THREE.Mesh(islandGeometry, baseMaterial);
+            islandMesh.position.z = floorThickness;
+            currentGroup.add(islandMesh);
+          });
+        });
+
+        if (params.mountHoleEnabled) {
+          const capDepth = totalBaseDepth - holeDepth;
+          if (capDepth > 0.001) {
+            const capShape = new THREE.Shape();
+            capShape.absarc(0, 0, outerPlugR, 0, Math.PI * 2, false);
+            const capGeometry = new THREE.ExtrudeGeometry(capShape, { depth: capDepth, bevelEnabled: false });
+            const capMesh = new THREE.Mesh(capGeometry, baseMaterial);
+            capMesh.position.z = holeDepth;
+            currentGroup.add(capMesh);
+          }
+
+          const threadSocketMesh = createThreadedSocketMesh(holeDepth, spec, params.mountHoleOffset, baseMaterial);
+          currentGroup.add(threadSocketMesh);
+        }
+      }
+    } else {
+      // --- EMBOSSED (RAISED) MODE ---
+      const textDepth = params.extrudeDepth;
+      const extrudeSettings = { depth: textDepth, bevelEnabled: false };
+      const textGeometry = new THREE.ExtrudeGeometry(shapes, extrudeSettings);
+
+      const textMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(params.textColor),
+        roughness: 0.3,
+        metalness: 0.2
+      });
+
+      const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+      textMesh.position.z = params.baseplateEnabled ? totalBaseDepth : 0;
+      currentGroup.add(textMesh);
+
+      if (params.baseplateEnabled) {
+        const pad = params.baseplatePadding;
+        const baseWidth = textWidth + (pad * 2);
+        const baseHeight = textHeight + (pad * 2);
+
+        const hw = baseWidth / 2;
+        const hh = baseHeight / 2;
+        const rad = Math.min(params.baseplateRadius, Math.min(hw, hh));
+
+        const baseShape = new THREE.Shape();
+        baseShape.moveTo(-hw + rad, -hh);
+        baseShape.lineTo(hw - rad, -hh);
+        baseShape.quadraticCurveTo(hw, -hh, hw, -hh + rad);
+        baseShape.lineTo(hw, hh - rad);
+        baseShape.quadraticCurveTo(hw, hh, hw - rad, hh);
+        baseShape.lineTo(-hw + rad, hh);
+        baseShape.quadraticCurveTo(-hw, hh, -hw, hh - rad);
+        baseShape.lineTo(-hw, -hh + rad);
+        baseShape.quadraticCurveTo(-hw, -hh, -hw + rad, -hh);
+
+        const spec = threadStandards[params.threadStandard] || threadStandards['1/4-20'];
+        const majorDia = spec.majorDia + params.mountHoleOffset;
+        const majorR = majorDia / 2;
+        const outerPlugR = majorR + 1.0;
+        const holeDepth = totalBaseDepth * params.mountHoleDepthRatio;
+
+        if (params.mountHoleEnabled) {
+          const holePath = new THREE.Path();
+          holePath.absarc(0, 0, outerPlugR, 0, Math.PI * 2, true);
+          baseShape.holes.push(holePath);
+        }
+
+        const baseGeometry = new THREE.ExtrudeGeometry(baseShape, { depth: totalBaseDepth, bevelEnabled: false });
+        const baseMaterial = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(params.baseColor),
+          roughness: 0.4,
+          metalness: 0.1
+        });
+
+        const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+        currentGroup.add(baseMesh);
+
+        if (params.mountHoleEnabled) {
+          const capDepth = totalBaseDepth - holeDepth;
+          if (capDepth > 0.001) {
+            const capShape = new THREE.Shape();
+            capShape.absarc(0, 0, outerPlugR, 0, Math.PI * 2, false);
+            const capGeometry = new THREE.ExtrudeGeometry(capShape, { depth: capDepth, bevelEnabled: false });
+            const capMesh = new THREE.Mesh(capGeometry, baseMaterial);
+            capMesh.position.z = holeDepth;
+            currentGroup.add(capMesh);
+          }
+
+          const threadSocketMesh = createThreadedSocketMesh(holeDepth, spec, params.mountHoleOffset, baseMaterial);
+          currentGroup.add(threadSocketMesh);
+        }
       }
     }
 
@@ -882,7 +1123,7 @@
   }
 
   // Convert opentype path to array of Three.js Shapes using Pure 2D Point-in-Polygon Containment
-  function opentypeToThreeShapes(font, text, size, mirror = false) {
+  function opentypeToThreeShapes(font, text, size) {
     const shapes = [];
     const fontScale = (1 / (font.unitsPerEm || 1000)) * size;
 
@@ -897,9 +1138,9 @@
       const shapePath = new THREE.ShapePath();
 
       path.commands.forEach(cmd => {
-        const mx = mirror ? -cmd.x : cmd.x;
-        const mx1 = mirror ? -cmd.x1 : cmd.x1;
-        const mx2 = mirror ? -cmd.x2 : cmd.x2;
+        const mx = cmd.x;
+        const mx1 = cmd.x1;
+        const mx2 = cmd.x2;
         const my = -cmd.y;
         const my1 = -cmd.y1;
         const my2 = -cmd.y2;
@@ -959,11 +1200,13 @@
 
             if (parent) {
               // Inside an outer shape -> add as inner hole!
-              const holePath = new THREE.Path(pInfo.points);
+              const holePath = new THREE.Path();
+              holePath.curves = pInfo.subPath.curves;
               parent.shape.holes.push(holePath);
             } else {
               // Top-level solid outer shape!
-              const shape = new THREE.Shape(pInfo.points);
+              const shape = new THREE.Shape();
+              shape.curves = pInfo.subPath.curves;
               charRootShapes.push({
                 shape: shape,
                 points: pInfo.points
@@ -975,7 +1218,7 @@
         }
       }
 
-      currentX += mirror ? -advanceWidth : advanceWidth;
+      currentX += advanceWidth;
     }
 
     return shapes;

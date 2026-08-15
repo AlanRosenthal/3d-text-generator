@@ -103,18 +103,20 @@
 
               <!-- 3. Upload Custom Font Button -->
               <div class="field-group" style="margin-top: 12px;">
-                <label>Upload Custom TTF / OTF</label>
+                <label>Upload Custom Font</label>
                 <button class="btn btn-outline" id="btn-upload-font" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                  <span>📁 Browse / Upload Custom Font</span>
+                  <span>📁 Upload</span>
                 </button>
                 <input type="file" id="font-file-input" accept=".ttf,.otf" hidden />
-                <div class="drop-sub-text" id="drop-sub" style="margin-top: 6px; text-align: center;">Active Font: Arial Bold (Default)</div>
               </div>
 
-              <!-- 4. Clear / Reset to Default Font Button -->
-              <button class="btn btn-ghost" id="btn-reset-default-font" style="width: 100%; margin-top: 10px; color: var(--text-muted);">
-                <span>🔄 Reset to Default Font</span>
-              </button>
+              <!-- 4. Active Font Display & Reset Button Side-by-Side -->
+              <div class="active-font-row" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; padding: 10px 12px; background: rgba(30, 41, 59, 0.6); border-radius: 8px; border: 1px solid var(--border-color, #334155);">
+                <div id="drop-sub" style="font-size: 14px; font-weight: 600; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Active Font: Arial Bold</div>
+                <button class="btn btn-ghost" id="btn-reset-default-font" style="padding: 4px 12px; font-size: 12px; font-weight: 600; height: 32px; flex-shrink: 0; color: var(--accent-color, #818cf8);">
+                  <span>Reset</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -131,11 +133,10 @@
               </div>
 
               <div class="field-group">
-                <label>Text Fill Mode ("Fill In")</label>
+                <label>Text Style</label>
                 <div class="segmented-control">
                   <button type="button" class="seg-btn active" data-mode="embossed">Embossed (Raised)</button>
-                  <button type="button" class="seg-btn" data-mode="recessed">Flush Infill</button>
-                  <button type="button" class="seg-btn" data-mode="hollow">Hollow Outline</button>
+                  <button type="button" class="seg-btn" data-mode="engraved">Engraved (Carved)</button>
                 </div>
               </div>
 

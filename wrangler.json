@@ -2,5 +2,6 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "3d-text-generator",
   "main": "worker.js",
-  "compatibility_date": "2024-01-01"
+  "compatibility_date": "2024-01-01",
+  "workers_dev": true
 }

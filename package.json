@@ -1,0 +1,23 @@
+{
+  "name": "3d-text-generator",
+  "version": "2.0.0",
+  "description": "3D Text STL Studio — WebGL 3D Printable Text & Baseplate Generator",
+  "main": "js/app.js",
+  "scripts": {
+    "test": "node tests/app-geometry.test.js",
+    "lint": "node scripts/static-analyzer.js",
+    "check": "node scripts/static-analyzer.js && node tests/app-geometry.test.js"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  },
+  "keywords": [
+    "3d",
+    "stl",
+    "threejs",
+    "dafont",
+    "3d-printing"
+  ],
+  "author": "Alan Rosenthal",
+  "license": "MIT"
+}
