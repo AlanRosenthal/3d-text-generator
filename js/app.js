@@ -1,5 +1,8 @@
-// Optional Cloudflare Worker / Private Proxy URL
-// Live Deployed Worker: https://3d-text-generator.alan-rosenthal.workers.dev
+/**
+ * 3D Text STL Studio — Core Application Logic for GitHub Pages
+ */
+
+// Cloudflare Worker API URL for zero-cors font package downloads
 window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev';
 
 (function () {
@@ -9,7 +12,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
   let scene, camera, renderer, controls, currentGroup;
   let gridHelper, ambientLight, dirLight1, dirLight2;
   let parsedFont = null;
-  let fontName = 'Arial Bold';
+  let fontName = 'Arial';
   let isGridVisible = true;
   let isLightingMode = true;
 
@@ -26,32 +29,31 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
   // 3D Parameters
   const params = {
-    text: '3D PRINT',
+    text: 'Your Text Here',
     extrudeDepth: 5.0,
     fontSize: 25.0,
+    letterSpacing: 0.0,
+    textThickness: 0.0,
     fillMode: 'embossed', // 'embossed', 'engraved'
     mirrorText: false,
     baseplateEnabled: true,
+    baseplateProfile: 'fillet', // 'fillet', 'chamfer', 'square'
     baseplateThickness: 2.0,
     baseplatePadding: 4.0,
     baseplateRadius: 4.0,
     mountHoleEnabled: false,
     threadStandard: '1/4-20',
-    mountHoleOffset: 0.20,     // 3D printer clearance offset (+0.20mm)
+    mountHoleOffset: 0.20,     // Tolerance compensation (+0.20mm to -0.50mm)
     mountHoleDepthRatio: 0.90, // 90% Blind Hole by default
     textColor: '#818cf8',
-    baseColor: '#475569'
+    baseColor: '#475569',
+    threadColor: '#f59e0b'
   };
-
-  const defaultFontUrl = 'lib/fonts/Arial-Bold.ttf';
 
   document.addEventListener('DOMContentLoaded', () => {
     initThreeJS();
     setupDropzone();
     setupControlListeners();
-
-    // Load zero-fetch embedded default font instantly (100% file:// protocol safe!)
-    loadEmbeddedFont('arial');
 
     // Check if URL contains shareable settings
     const hasSharedParams = loadParamsFromURL();
@@ -59,6 +61,9 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       syncUIFromParams();
       setStatus('Shared config loaded');
     }
+
+    // Load default font from RAM
+    loadEmbeddedFont('arial');
   });
 
   function updateFontStatusText(name) {
@@ -68,7 +73,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     if (elPri) elPri.textContent = name;
   }
 
-  // Load zero-fetch embedded font directly from RAM (100% file:// protocol safe!)
+  // Load font directly from RAM
   function loadEmbeddedFont(fontKey = 'arial') {
     const key = fontKey || 'arial';
     if (window.EMBEDDED_FONTS && window.EMBEDDED_FONTS[key]) {
@@ -98,8 +103,8 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
           bytes[i] = binaryString.charCodeAt(i);
         }
         parsedFont = opentype.parse(bytes.buffer);
-        fontName = 'Arial Bold';
-        updateFontStatusText('Arial Bold');
+        fontName = 'Arial';
+        updateFontStatusText('Arial');
         setStatus('Font ready');
         update3DMesh();
         return true;
@@ -110,57 +115,59 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     return false;
   }
 
-  // Initialize Three.js WebGL Scene
+  // Setup WebGL Three.js Viewport
   function initThreeJS() {
     const container = document.getElementById('3d-viewport-container');
     const canvas = document.getElementById('webgl-canvas');
 
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 500;
+
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f172a);
 
-    camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(0, -70, 110);
+    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    camera.position.set(0, -90, 80);
+    camera.lookAt(0, 0, 0);
 
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+    renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
 
-    if (THREE.OrbitControls) {
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-    }
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 + 0.1;
 
-    // Grid Helper
-    gridHelper = new THREE.GridHelper(240, 40, 0x334155, 0x1e293b);
+    gridHelper = new THREE.GridHelper(200, 40, 0x475569, 0x1e293b);
     gridHelper.rotation.x = Math.PI / 2;
     scene.add(gridHelper);
 
-    // Lights
-    ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 
     dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight1.position.set(60, 120, 100);
+    dirLight1.position.set(50, 50, 100);
     scene.add(dirLight1);
 
-    dirLight2 = new THREE.DirectionalLight(0xa5b4fc, 0.4);
-    dirLight2.position.set(-60, -60, 60);
+    dirLight2 = new THREE.DirectionalLight(0x818cf8, 0.4);
+    dirLight2.position.set(-50, -50, 50);
     scene.add(dirLight2);
 
     window.addEventListener('resize', onWindowResize);
-
-    function animate() {
-      requestAnimationFrame(animate);
-      if (controls) controls.update();
-      renderer.render(scene, camera);
-    }
     animate();
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if (controls) controls.update();
+    if (renderer && scene && camera) renderer.render(scene, camera);
   }
 
   function onWindowResize() {
     const container = document.getElementById('3d-viewport-container');
-    if (!container || !camera || !renderer) return;
+    if (!container || !renderer || !camera) return;
     const width = container.clientWidth;
     const height = container.clientHeight;
     camera.aspect = width / height;
@@ -168,41 +175,22 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     renderer.setSize(width, height);
   }
 
-  // Setup Card 1 Font Control Listeners
   function setupDropzone() {
-    const dropzone = document.getElementById('font-dropzone');
     const fileInput = document.getElementById('font-file-input');
-
-    if (dropzone && fileInput) {
-      dropzone.addEventListener('click', () => fileInput.click());
-
-      dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropzone.classList.add('drag-over');
-      });
-
-      dropzone.addEventListener('dragleave', () => {
-        dropzone.classList.remove('drag-over');
-      });
-
-      dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('drag-over');
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-          handleFontFile(e.dataTransfer.files[0]);
-        }
-      });
-    }
 
     if (fileInput) {
       fileInput.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files.length > 0) {
+        if (e.target.files && e.target.files[0]) {
           handleFontFile(e.target.files[0]);
         }
       });
     }
+  }
 
-    // Standard Web Fonts Dropdown (100% RAM Embedded)
+  function setupControlListeners() {
+    const fileInput = document.getElementById('font-file-input');
+
+    // Fonts Dropdown
     const selectGoogleFont = document.getElementById('select-google-font');
     if (selectGoogleFont) {
       selectGoogleFont.addEventListener('change', (e) => {
@@ -213,7 +201,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       });
     }
 
-    // 2. daFont Custom URL / Name Importer
+    // daFont Custom URL / Name Importer
     const btnImportUrl = document.getElementById('btn-import-url');
     const dafontUrlInput = document.getElementById('dafont-url-input');
 
@@ -236,13 +224,13 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       });
     }
 
-    // 3. Upload Custom Font Button
+    // Upload Custom Font Button
     const btnUploadFont = document.getElementById('btn-upload-font');
     if (btnUploadFont && fileInput) {
       btnUploadFont.addEventListener('click', () => fileInput.click());
     }
 
-    // 4. Clear / Reset to Default Font Button
+    // Clear / Reset to Default Font Button
     const btnResetFont = document.getElementById('btn-reset-default-font');
     if (btnResetFont) {
       btnResetFont.addEventListener('click', () => {
@@ -253,9 +241,240 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         setStatus('Reset to default font');
       });
     }
+
+    // Text Input Listener
+    const inputCustomText = document.getElementById('input-custom-text');
+    if (inputCustomText) {
+      inputCustomText.addEventListener('input', (e) => {
+        params.text = e.target.value || ' ';
+        update3DMesh();
+      });
+    }
+
+    // Segmented Control (Embossed vs Engraved)
+    const segBtns = document.querySelectorAll('.seg-btn');
+    segBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        segBtns.forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        params.fillMode = e.target.getAttribute('data-mode') || 'embossed';
+
+        const checkBaseplate = document.getElementById('check-baseplate');
+        if (params.fillMode === 'engraved') {
+          // Force enable baseplate for engraved mode!
+          params.baseplateEnabled = true;
+          if (checkBaseplate) {
+            checkBaseplate.checked = true;
+            checkBaseplate.disabled = true;
+            document.getElementById('baseplate-controls-body').style.display = 'flex';
+          }
+        } else {
+          if (checkBaseplate) {
+            checkBaseplate.disabled = false;
+          }
+        }
+
+        update3DMesh();
+      });
+    });
+
+    // Mirror Text Toggle
+    const checkMirrorText = document.getElementById('check-mirror-text');
+    if (checkMirrorText) {
+      checkMirrorText.addEventListener('change', (e) => {
+        params.mirrorText = e.target.checked;
+        update3DMesh();
+      });
+    }
+
+    // Baseplate Corner Profile Dropdown
+    const selectBaseProfile = document.getElementById('select-baseplate-profile');
+    if (selectBaseProfile) {
+      selectBaseProfile.addEventListener('change', (e) => {
+        params.baseplateProfile = e.target.value || 'fillet';
+        update3DMesh();
+      });
+    }
+
+    // Baseplate Toggle
+    const checkBaseplate = document.getElementById('check-baseplate');
+    if (checkBaseplate) {
+      checkBaseplate.addEventListener('change', (e) => {
+        if (params.fillMode === 'engraved') {
+          params.baseplateEnabled = true;
+          checkBaseplate.checked = true;
+          return;
+        }
+        params.baseplateEnabled = e.target.checked;
+        document.getElementById('baseplate-controls-body').style.display = params.baseplateEnabled ? 'flex' : 'none';
+        update3DMesh();
+      });
+    }
+
+    // Mount Hole Toggle
+    const checkMounthole = document.getElementById('check-mounthole');
+    if (checkMounthole) {
+      checkMounthole.addEventListener('change', (e) => {
+        params.mountHoleEnabled = e.target.checked;
+        document.getElementById('mounthole-controls-body').style.display = params.mountHoleEnabled ? 'flex' : 'none';
+        update3DMesh();
+      });
+    }
+
+    // Thread Standard Dropdown
+    const selectThread = document.getElementById('select-thread-standard');
+    if (selectThread) {
+      selectThread.addEventListener('change', (e) => {
+        params.threadStandard = e.target.value;
+        update3DMesh();
+      });
+    }
+
+    // Sliders Bindings
+    bindSlider('range-extrude-depth', 'val-extrude-depth', (val) => { params.extrudeDepth = val; }, 'mm');
+    bindSlider('range-font-size', 'val-font-size', (val) => { params.fontSize = val; }, 'mm');
+    bindSlider('range-letter-spacing', 'val-letter-spacing', (val) => { params.letterSpacing = val; }, 'mm');
+    bindSlider('range-text-thickness', 'val-text-thickness', (val) => { params.textThickness = val; }, 'mm');
+    bindSlider('range-base-thick', 'val-base-thick', (val) => { params.baseplateThickness = val; }, 'mm');
+    bindSlider('range-base-pad', 'val-base-pad', (val) => { params.baseplatePadding = val; }, 'mm');
+    bindSlider('range-base-radius', 'val-base-radius', (val) => { params.baseplateRadius = val; }, 'mm');
+    bindSlider('range-mounthole-offset', 'val-mounthole-offset', (val) => { params.mountHoleOffset = val; }, 'mm', true);
+
+    const rangeDepthRatio = document.getElementById('range-mounthole-depth-ratio');
+    if (rangeDepthRatio) {
+      rangeDepthRatio.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        params.mountHoleDepthRatio = val / 100;
+        const badge = document.getElementById('val-mounthole-depth-ratio');
+        if (badge) badge.textContent = val === 100 ? '100% (Through Hole)' : `${val}% (Blind Hole)`;
+        update3DMesh();
+      });
+    }
+
+    // Color Pickers
+    const colorText = document.getElementById('color-text');
+    if (colorText) {
+      colorText.addEventListener('input', (e) => {
+        params.textColor = e.target.value;
+        update3DMesh();
+      });
+    }
+
+    const colorBase = document.getElementById('color-base');
+    if (colorBase) {
+      colorBase.addEventListener('input', (e) => {
+        params.baseColor = e.target.value;
+        update3DMesh();
+      });
+    }
+
+    const colorThread = document.getElementById('color-thread');
+    if (colorThread) {
+      colorThread.addEventListener('input', (e) => {
+        params.threadColor = e.target.value;
+        update3DMesh();
+      });
+    }
+
+    // Toolbar Actions
+    const btnResetCam = document.getElementById('tool-reset-cam');
+    if (btnResetCam) {
+      btnResetCam.addEventListener('click', () => {
+        camera.position.set(0, -90, 80);
+        camera.lookAt(0, 0, 0);
+        controls.reset();
+      });
+    }
+
+    const btnToggleGrid = document.getElementById('tool-toggle-grid');
+    if (btnToggleGrid) {
+      btnToggleGrid.addEventListener('click', () => {
+        isGridVisible = !isGridVisible;
+        if (gridHelper) gridHelper.visible = isGridVisible;
+      });
+    }
+
+    const btnToggleShadow = document.getElementById('tool-toggle-shadow');
+    if (btnToggleShadow) {
+      btnToggleShadow.addEventListener('click', () => {
+        isLightingMode = !isLightingMode;
+        dirLight1.intensity = isLightingMode ? 0.8 : 0.2;
+        ambientLight.intensity = isLightingMode ? 0.7 : 1.2;
+      });
+    }
+
+    // Shareable Link Buttons
+    const btnShare = document.getElementById('btn-share-link');
+    const btnShareFooter = document.getElementById('btn-share-link-footer');
+
+    const handleShare = (btnEvt) => {
+      const shareUrl = generateShareableURL();
+      const targetBtn = btnEvt && btnEvt.currentTarget ? btnEvt.currentTarget : btnShare;
+
+      const setCopySuccess = () => {
+        setStatus('🔗 Link copied to clipboard!');
+        if (targetBtn) {
+          const origText = targetBtn.innerHTML;
+          targetBtn.innerHTML = '✓ Copied!';
+          targetBtn.style.borderColor = 'var(--accent-color, #818cf8)';
+          setTimeout(() => {
+            targetBtn.innerHTML = origText;
+            targetBtn.style.borderColor = '';
+          }, 2000);
+        }
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(shareUrl).then(setCopySuccess).catch(() => {
+          fallbackCopyTextToClipboard(shareUrl);
+          setCopySuccess();
+        });
+      } else {
+        fallbackCopyTextToClipboard(shareUrl);
+        setCopySuccess();
+      }
+    };
+
+    function fallbackCopyTextToClipboard(text) {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+      } catch {
+        // ignore
+      }
+      document.body.removeChild(textArea);
+    }
+
+    if (btnShare) btnShare.addEventListener('click', handleShare);
+    if (btnShareFooter) btnShareFooter.addEventListener('click', handleShare);
+
+    // Export STL Button
+    const btnExport = document.getElementById('btn-export-stl');
+    if (btnExport) btnExport.addEventListener('click', exportSTL);
   }
 
-  // Handle local TTF / OTF font file
+  function bindSlider(id, badgeId, updateParam, unit = '', showSign = false) {
+    const slider = document.getElementById(id);
+    const badge = document.getElementById(badgeId);
+    if (slider) {
+      slider.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        updateParam(val);
+        if (badge) {
+          const sign = (showSign && val > 0) ? '+' : '';
+          badge.textContent = `${sign}${val.toFixed(1)} ${unit}`.trim();
+        }
+        update3DMesh();
+      });
+    }
+  }
+
   function handleFontFile(file) {
     if (!file.name.match(/\.(ttf|otf)$/i)) {
       alert('Please upload a valid .TTF or .OTF font file.');
@@ -281,7 +500,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     reader.readAsArrayBuffer(file);
   }
 
-  // Import font from daFont URL, slug, or direct ZIP/TTF
+  // Import font via Cloudflare Worker API exclusively (Requirement 18: 0 external fallbacks!)
   async function importFromDafontURL(userInput) {
     const inputStr = userInput.trim();
     if (!inputStr) return;
@@ -296,64 +515,44 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       slug = inputStr;
     }
 
-    const zipUrl = (inputStr.startsWith('http://') || inputStr.startsWith('https://')) && inputStr.match(/\.(zip|ttf|otf)$/i)
-      ? inputStr
-      : `https://dl.dafont.com/dl/?f=${slug}`;
-
     const displayName = slug.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
     showLoader(`Fetching ${displayName}...`);
 
-    try {
-      let arrayBuffer = null;
+    const cleanWorker = window.CUSTOM_PROXY_URL.trim().replace(/\/+$/, '');
+    const candidates = [
+      `${cleanWorker}?f=${encodeURIComponent(slug.replace(/-/g, '_'))}`,
+      `${cleanWorker}?f=${encodeURIComponent(slug)}`,
+      `${cleanWorker}?url=${encodeURIComponent(inputStr)}`
+    ];
 
-      const proxies = [];
+    let arrayBuffer = null;
+    let lastError = null;
 
-      if (window.CUSTOM_PROXY_URL) {
-        const cleanWorker = window.CUSTOM_PROXY_URL.trim().replace(/\/+$/, '');
-        proxies.push(`${cleanWorker}?f=${encodeURIComponent(slug)}`);
-        proxies.push(`${cleanWorker}?url=${encodeURIComponent(zipUrl)}`);
-      }
-
-      proxies.push(`https://corsproxy.io/?${encodeURIComponent(zipUrl)}`);
-      proxies.push(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(zipUrl)}`);
-      proxies.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(zipUrl)}`);
-      proxies.push(`https://thingproxy.freeboard.io/fetch/${zipUrl}`);
-
-      for (const proxy of proxies) {
-        try {
-          const res = await fetch(proxy);
-          if (res && res.ok) {
-            const buf = await res.arrayBuffer();
-            if (buf && buf.byteLength > 100) {
-              const head = new Uint8Array(buf.slice(0, 4));
-              const isZip = (head[0] === 0x50 && head[1] === 0x4B); // PK
-              const isFont = (
-                (head[0] === 0x4F && head[1] === 0x54 && head[2] === 0x54 && head[3] === 0x4F) || // OTTO
-                (head[0] === 0x00 && head[1] === 0x01 && head[2] === 0x00 && head[3] === 0x00) || // TTF
-                (head[0] === 0x74 && head[1] === 0x72 && head[2] === 0x75 && head[3] === 0x65)    // true
-              );
-
-              if (isZip || isFont) {
-                arrayBuffer = buf;
-                break;
-              }
-            }
+    for (const workerUrl of candidates) {
+      try {
+        const res = await fetch(workerUrl);
+        if (res && res.ok) {
+          const buf = await res.arrayBuffer();
+          if (buf && buf.byteLength > 100) {
+            arrayBuffer = buf;
+            break;
           }
-        } catch {
-          // try next proxy
         }
+      } catch (err) {
+        lastError = err;
       }
+    }
 
-      if (!arrayBuffer) {
-        throw new Error('Could not retrieve font package from daFont servers via CORS proxies.');
-      }
+    if (!arrayBuffer) {
+      throw new Error(lastError ? lastError.message : 'Cloudflare Worker proxy could not retrieve font package');
+    }
 
       const head = new Uint8Array(arrayBuffer.slice(0, 4));
       const isFont = (
-        (head[0] === 0x4F && head[1] === 0x54 && head[2] === 0x54 && head[3] === 0x4F) ||
-        (head[0] === 0x00 && head[1] === 0x01 && head[2] === 0x00 && head[3] === 0x00) ||
-        (head[0] === 0x74 && head[1] === 0x72 && head[2] === 0x75 && head[3] === 0x65)
+        (head[0] === 0x4F && head[1] === 0x54 && head[2] === 0x54 && head[3] === 0x4F) || // OTTO
+        (head[0] === 0x00 && head[1] === 0x01 && head[2] === 0x00 && head[3] === 0x00) || // TTF
+        (head[0] === 0x74 && head[1] === 0x72 && head[2] === 0x75 && head[3] === 0x65)    // true
       );
 
       showLoader('Parsing font glyphs...');
@@ -361,7 +560,6 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       if (isFont) {
         parsedFont = opentype.parse(arrayBuffer);
       } else {
-        // Extract from ZIP package
         const zip = await JSZip.loadAsync(arrayBuffer);
         let fontZipFile = null;
 
@@ -387,297 +585,49 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       setStatus(`Imported: ${displayName}`);
       update3DMesh();
     } catch (err) {
-      console.error('daFont import error:', err);
+      console.error('daFont import error via Worker API:', err);
       hideLoader();
-      alert(`Could not import daFont "${displayName}": ${err.message}\n\nTip: You can download the ZIP directly from daFont and click "Browse / Upload Custom Font" to select the .TTF file!`);
+      alert(`Could not import daFont "${displayName}": ${err.message}\n\nTip: You can download the ZIP directly from daFont and click "📁 Upload" to select the .TTF file!`);
     }
   }
 
-  // Load TTF from URL (with CORS proxy fallback & embedded font recovery)
-  async function loadFontFromUrl(url, name) {
-    showLoader(`Loading ${name}...`);
-    try {
-      let response;
-      try {
-        response = await fetch(url);
-      } catch {
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-        response = await fetch(proxyUrl);
-      }
+  // Create Baseplate 2D Shape with Corner Profile (Fillet, Chamfer, Square)
+  function createBaseplateShape(hw, hh, rad, profile = 'fillet') {
+    const shape = new THREE.Shape();
+    const r = Math.min(rad, Math.min(hw, hh));
 
-      if (!response.ok) {
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-        response = await fetch(proxyUrl);
-      }
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const fontBuffer = await response.arrayBuffer();
-      parsedFont = opentype.parse(fontBuffer);
-      fontName = name;
-      updateFontStatusText(name);
-      hideLoader();
-      setStatus(`Loaded: ${name}`);
-      update3DMesh();
-    } catch (err) {
-      console.warn('URL font load notice:', err.message);
-      hideLoader();
-      loadEmbeddedFont('arial');
+    if (profile === 'square' || r <= 0.001) {
+      shape.moveTo(-hw, -hh);
+      shape.lineTo(hw, -hh);
+      shape.lineTo(hw, hh);
+      shape.lineTo(-hw, hh);
+      shape.lineTo(-hw, -hh);
+    } else if (profile === 'chamfer') {
+      shape.moveTo(-hw + r, -hh);
+      shape.lineTo(hw - r, -hh);
+      shape.lineTo(hw, -hh + r);
+      shape.lineTo(hw, hh - r);
+      shape.lineTo(hw - r, hh);
+      shape.lineTo(-hw + r, hh);
+      shape.lineTo(-hw, hh - r);
+      shape.lineTo(-hw, -hh + r);
+      shape.lineTo(-hw + r, -hh);
+    } else {
+      // Fillet (Round)
+      shape.moveTo(-hw + r, -hh);
+      shape.lineTo(hw - r, -hh);
+      shape.quadraticCurveTo(hw, -hh, hw, -hh + r);
+      shape.lineTo(hw, hh - r);
+      shape.quadraticCurveTo(hw, hh, hw - r, hh);
+      shape.lineTo(-hw + r, hh);
+      shape.quadraticCurveTo(-hw, hh, -hw, hh - r);
+      shape.lineTo(-hw, -hh + r);
+      shape.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
     }
+    return shape;
   }
 
-  // Setup UI Control Listeners
-  function setupControlListeners() {
-    const customText = document.getElementById('input-custom-text');
-    customText.addEventListener('input', (e) => {
-      params.text = e.target.value || ' ';
-      update3DMesh();
-    });
-
-    // Fill Mode Segmented Control
-    const segBtns = document.querySelectorAll('.seg-btn');
-    segBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        segBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        params.fillMode = btn.dataset.mode;
-        update3DMesh();
-      });
-    });
-
-    // Mirror Text Toggle
-    const checkMirror = document.getElementById('check-mirror-text');
-    if (checkMirror) {
-      checkMirror.addEventListener('change', (e) => {
-        params.mirrorText = e.target.checked;
-        update3DMesh();
-      });
-    }
-
-    // Sliders
-    const bindSlider = (id, badgeId, paramKey, unit = ' mm') => {
-      const slider = document.getElementById(id);
-      if (!slider) return;
-      slider.addEventListener('input', (e) => {
-        params[paramKey] = parseFloat(e.target.value);
-        const badge = document.getElementById(badgeId);
-        if (badge) badge.textContent = params[paramKey] + unit;
-        update3DMesh();
-      });
-    };
-
-    bindSlider('range-extrude-depth', 'val-extrude-depth', 'extrudeDepth');
-    bindSlider('range-font-size', 'val-font-size', 'fontSize');
-    bindSlider('range-base-thick', 'val-base-thick', 'baseplateThickness');
-    bindSlider('range-base-pad', 'val-base-pad', 'baseplatePadding');
-    bindSlider('range-base-radius', 'val-base-radius', 'baseplateRadius');
-
-    // Baseplate Toggle
-    const checkBaseplate = document.getElementById('check-baseplate');
-    checkBaseplate.addEventListener('change', (e) => {
-      params.baseplateEnabled = e.target.checked;
-      document.getElementById('baseplate-controls-body').style.display = params.baseplateEnabled ? 'flex' : 'none';
-      update3DMesh();
-    });
-
-    // Tapped Mount Hole Toggle
-    const checkMounthole = document.getElementById('check-mounthole');
-    if (checkMounthole) {
-      checkMounthole.addEventListener('change', (e) => {
-        params.mountHoleEnabled = e.target.checked;
-        document.getElementById('mounthole-controls-body').style.display = params.mountHoleEnabled ? 'flex' : 'none';
-        update3DMesh();
-      });
-    }
-
-    // Thread Standard Select
-    const selectThreadStandard = document.getElementById('select-thread-standard');
-    if (selectThreadStandard) {
-      selectThreadStandard.addEventListener('change', (e) => {
-        params.threadStandard = e.target.value;
-        update3DMesh();
-      });
-    }
-
-    // Tolerance Offset Slider
-    const rangeOffset = document.getElementById('range-mounthole-offset');
-    if (rangeOffset) {
-      rangeOffset.addEventListener('input', (e) => {
-        params.mountHoleOffset = parseFloat(e.target.value);
-        document.getElementById('val-mounthole-offset').textContent = '+' + params.mountHoleOffset.toFixed(2) + ' mm';
-        update3DMesh();
-      });
-    }
-
-    // Hole Depth Ratio Slider
-    const rangeDepthRatio = document.getElementById('range-mounthole-depth-ratio');
-    if (rangeDepthRatio) {
-      rangeDepthRatio.addEventListener('input', (e) => {
-        params.mountHoleDepthRatio = parseFloat(e.target.value) / 100;
-        const pct = Math.round(params.mountHoleDepthRatio * 100);
-        const tag = pct === 100 ? '100% (Through Hole)' : `${pct}% (Blind Hole)`;
-        document.getElementById('val-mounthole-depth-ratio').textContent = tag;
-        update3DMesh();
-      });
-    }
-
-    // Color Pickers
-    document.getElementById('color-text').addEventListener('input', (e) => {
-      params.textColor = e.target.value;
-      update3DMesh();
-    });
-    document.getElementById('color-base').addEventListener('input', (e) => {
-      params.baseColor = e.target.value;
-      update3DMesh();
-    });
-
-    // Toolbar Buttons
-    document.getElementById('tool-reset-cam').addEventListener('click', () => {
-      if (camera && controls) {
-        camera.position.set(0, -70, 110);
-        controls.target.set(0, 0, 0);
-        controls.update();
-      }
-    });
-
-    document.getElementById('tool-toggle-grid').addEventListener('click', () => {
-      isGridVisible = !isGridVisible;
-      if (gridHelper) gridHelper.visible = isGridVisible;
-    });
-
-    document.getElementById('tool-toggle-shadow').addEventListener('click', () => {
-      isLightingMode = !isLightingMode;
-      if (ambientLight && dirLight1) {
-        ambientLight.intensity = isLightingMode ? 0.6 : 1.2;
-        dirLight1.intensity = isLightingMode ? 0.8 : 0.0;
-      }
-    });
-
-    // Share Link Buttons
-    const btnShare1 = document.getElementById('btn-share-link');
-    if (btnShare1) btnShare1.addEventListener('click', copyShareableLink);
-
-    const btnShare2 = document.getElementById('btn-share-link-footer');
-    if (btnShare2) btnShare2.addEventListener('click', copyShareableLink);
-
-    // Export STL
-    document.getElementById('btn-export-stl').addEventListener('click', exportSTL);
-  }
-
-  // Copy Shareable Settings Link to Clipboard
-  function copyShareableLink() {
-    try {
-      const config = {
-        text: params.text,
-        extrudeDepth: params.extrudeDepth,
-        fontSize: params.fontSize,
-        fillMode: params.fillMode,
-        mirrorText: params.mirrorText,
-        baseplateEnabled: params.baseplateEnabled,
-        baseplateThickness: params.baseplateThickness,
-        baseplatePadding: params.baseplatePadding,
-        baseplateRadius: params.baseplateRadius,
-        mountHoleEnabled: params.mountHoleEnabled,
-        threadStandard: params.threadStandard,
-        mountHoleOffset: params.mountHoleOffset,
-        mountHoleDepthRatio: params.mountHoleDepthRatio,
-        textColor: params.textColor,
-        baseColor: params.baseColor,
-        fontName: fontName
-      };
-
-      const jsonStr = JSON.stringify(config);
-      const encoded = btoa(encodeURIComponent(jsonStr));
-      const baseUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
-      const shareUrl = `${baseUrl}#cfg=${encoded}`;
-
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        setStatus('Link copied! 📋');
-        setTimeout(() => setStatus('Ready'), 3000);
-      }).catch(() => {
-        prompt('Copy your shareable settings link:', shareUrl);
-      });
-    } catch (err) {
-      console.error('Share link generation error:', err);
-    }
-  }
-
-  // Load Settings from URL Hash
-  function loadParamsFromURL() {
-    const hash = window.location.hash;
-    if (!hash || !hash.includes('#cfg=')) return false;
-
-    try {
-      const encoded = hash.split('#cfg=')[1];
-      const jsonStr = decodeURIComponent(atob(encoded));
-      const config = JSON.parse(jsonStr);
-
-      Object.assign(params, config);
-      if (config.fontName) fontName = config.fontName;
-      return true;
-    } catch (err) {
-      console.warn('Could not parse share link config:', err);
-      return false;
-    }
-  }
-
-  // Sync UI Elements with Active Params
-  function syncUIFromParams() {
-    const customText = document.getElementById('input-custom-text');
-    if (customText) customText.value = params.text;
-
-    const segBtns = document.querySelectorAll('.seg-btn');
-    segBtns.forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.mode === params.fillMode);
-    });
-
-    const checkMirror = document.getElementById('check-mirror-text');
-    if (checkMirror) checkMirror.checked = params.mirrorText;
-
-    const setSlider = (id, val, badgeId, unit = ' mm') => {
-      const el = document.getElementById(id);
-      if (el) el.value = val;
-      const badge = document.getElementById(badgeId);
-      if (badge) badge.textContent = val + unit;
-    };
-
-    setSlider('range-extrude-depth', params.extrudeDepth, 'val-extrude-depth');
-    setSlider('range-font-size', params.fontSize, 'val-font-size');
-    setSlider('range-base-thick', params.baseplateThickness, 'val-base-thick');
-    setSlider('range-base-pad', params.baseplatePadding, 'val-base-pad');
-    setSlider('range-base-radius', params.baseplateRadius, 'val-base-radius');
-    setSlider('range-mounthole-offset', params.mountHoleOffset, 'val-mounthole-offset');
-
-    const rangeDepthRatio = document.getElementById('range-mounthole-depth-ratio');
-    if (rangeDepthRatio) {
-      const pct = Math.round(params.mountHoleDepthRatio * 100);
-      rangeDepthRatio.value = pct;
-      const badge = document.getElementById('val-mounthole-depth-ratio');
-      if (badge) badge.textContent = pct === 100 ? '100% (Through Hole)' : `${pct}% (Blind Hole)`;
-    }
-
-    const checkBaseplate = document.getElementById('check-baseplate');
-    if (checkBaseplate) {
-      checkBaseplate.checked = params.baseplateEnabled;
-      document.getElementById('baseplate-controls-body').style.display = params.baseplateEnabled ? 'flex' : 'none';
-    }
-
-    const checkMounthole = document.getElementById('check-mounthole');
-    if (checkMounthole) {
-      checkMounthole.checked = params.mountHoleEnabled;
-      document.getElementById('mounthole-controls-body').style.display = params.mountHoleEnabled ? 'flex' : 'none';
-    }
-
-    const selectThread = document.getElementById('select-thread-standard');
-    if (selectThread) selectThread.value = params.threadStandard;
-
-    const colorText = document.getElementById('color-text');
-    if (colorText) colorText.value = params.textColor;
-
-    const colorBase = document.getElementById('color-base');
-    if (colorBase) colorBase.value = params.baseColor;
-  }
-
-  // Mirror 2D curve on X axis (x -> -x) with curve direction reversal to preserve 2D winding orientation
+  // Mirror 2D curve on X axis (x -> -x) with curve direction reversal
   function mirrorCurve2DX(curve) {
     if (curve.isLineCurve) {
       return new THREE.LineCurve(
@@ -768,7 +718,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     currentGroup = new THREE.Group();
 
     // 1. Convert opentype glyph paths to Three.js Shapes
-    const rawShapes = opentypeToThreeShapes(parsedFont, params.text, params.fontSize);
+    const rawShapes = opentypeToThreeShapes(parsedFont, params.text, params.fontSize, params.letterSpacing, params.textThickness);
     if (!rawShapes || rawShapes.length === 0) return;
 
     // Compute 2D bounding box across all raw shapes to determine exact text center
@@ -805,6 +755,10 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     }
 
     const isEngraved = (params.fillMode === 'engraved');
+    if (isEngraved) {
+      params.baseplateEnabled = true;
+    }
+
     const totalBaseDepth = params.baseplateThickness;
 
     if (isEngraved) {
@@ -820,7 +774,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         metalness: 0.2
       });
       const textMesh = new THREE.Mesh(floorGeometry, textMaterial);
-      textMesh.position.z = params.baseplateEnabled ? floorThickness : 0;
+      textMesh.position.z = floorThickness;
       currentGroup.add(textMesh);
 
       // 2. Baseplate Mesh
@@ -832,17 +786,6 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         const hw = baseWidth / 2;
         const hh = baseHeight / 2;
         const rad = Math.min(params.baseplateRadius, Math.min(hw, hh));
-
-        const baseShape = new THREE.Shape();
-        baseShape.moveTo(-hw + rad, -hh);
-        baseShape.lineTo(hw - rad, -hh);
-        baseShape.quadraticCurveTo(hw, -hh, hw, -hh + rad);
-        baseShape.lineTo(hw, hh - rad);
-        baseShape.quadraticCurveTo(hw, hh, hw - rad, hh);
-        baseShape.lineTo(-hw + rad, hh);
-        baseShape.quadraticCurveTo(-hw, hh, -hw, hh - rad);
-        baseShape.lineTo(-hw, -hh + rad);
-        baseShape.quadraticCurveTo(-hw, -hh, -hw + rad, -hh);
 
         const spec = threadStandards[params.threadStandard] || threadStandards['1/4-20'];
         const majorDia = spec.majorDia + params.mountHoleOffset;
@@ -856,9 +799,14 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
           metalness: 0.1
         });
 
+        const threadMaterial = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(params.threadColor),
+          roughness: 0.3,
+          metalness: 0.5
+        });
+
         // A. Bottom Solid Baseplate Floor (Z=0 to Z=floorThickness)
-        const bottomShape = new THREE.Shape();
-        bottomShape.curves = baseShape.curves;
+        const bottomShape = createBaseplateShape(hw, hh, rad, params.baseplateProfile);
         if (params.mountHoleEnabled) {
           const holePath = new THREE.Path();
           holePath.absarc(0, 0, outerPlugR, 0, Math.PI * 2, true);
@@ -870,8 +818,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         currentGroup.add(bottomMesh);
 
         // B. Top Carved Baseplate Walls (Z=floorThickness to Z=totalBaseDepth)
-        const topBaseShape = new THREE.Shape();
-        topBaseShape.curves = baseShape.curves;
+        const topBaseShape = createBaseplateShape(hw, hh, rad, params.baseplateProfile);
         shapes.forEach(s => {
           const letterHole = new THREE.Path();
           letterHole.curves = s.curves;
@@ -888,10 +835,11 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         topMesh.position.z = floorThickness;
         currentGroup.add(topMesh);
 
-        // C. Inner Island Pillars for letters with holes ('A', 'B', 'P', 'R', 'g', 'o')
+        // C. Inner Island Pillars for letters with holes ('A', 'B', 'P', 'R', 'g', 'o', '0', '8')
         shapes.forEach(s => {
           s.holes.forEach(h => {
-            const islandShape = new THREE.Shape(h.curves);
+            const islandShape = new THREE.Shape();
+            islandShape.curves = h.curves;
             const islandGeometry = new THREE.ExtrudeGeometry(islandShape, { depth: recessDepth, bevelEnabled: false });
             const islandMesh = new THREE.Mesh(islandGeometry, baseMaterial);
             islandMesh.position.z = floorThickness;
@@ -910,7 +858,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
             currentGroup.add(capMesh);
           }
 
-          const threadSocketMesh = createThreadedSocketMesh(holeDepth, spec, params.mountHoleOffset, baseMaterial);
+          const threadSocketMesh = createThreadedSocketMesh(holeDepth, spec, params.mountHoleOffset, threadMaterial);
           currentGroup.add(threadSocketMesh);
         }
       }
@@ -939,16 +887,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         const hh = baseHeight / 2;
         const rad = Math.min(params.baseplateRadius, Math.min(hw, hh));
 
-        const baseShape = new THREE.Shape();
-        baseShape.moveTo(-hw + rad, -hh);
-        baseShape.lineTo(hw - rad, -hh);
-        baseShape.quadraticCurveTo(hw, -hh, hw, -hh + rad);
-        baseShape.lineTo(hw, hh - rad);
-        baseShape.quadraticCurveTo(hw, hh, hw - rad, hh);
-        baseShape.lineTo(-hw + rad, hh);
-        baseShape.quadraticCurveTo(-hw, hh, -hw, hh - rad);
-        baseShape.lineTo(-hw, -hh + rad);
-        baseShape.quadraticCurveTo(-hw, -hh, -hw + rad, -hh);
+        const baseShape = createBaseplateShape(hw, hh, rad, params.baseplateProfile);
 
         const spec = threadStandards[params.threadStandard] || threadStandards['1/4-20'];
         const majorDia = spec.majorDia + params.mountHoleOffset;
@@ -969,6 +908,12 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
           metalness: 0.1
         });
 
+        const threadMaterial = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(params.threadColor),
+          roughness: 0.3,
+          metalness: 0.5
+        });
+
         const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
         currentGroup.add(baseMesh);
 
@@ -983,15 +928,13 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
             currentGroup.add(capMesh);
           }
 
-          const threadSocketMesh = createThreadedSocketMesh(holeDepth, spec, params.mountHoleOffset, baseMaterial);
+          const threadSocketMesh = createThreadedSocketMesh(holeDepth, spec, params.mountHoleOffset, threadMaterial);
           currentGroup.add(threadSocketMesh);
         }
       }
     }
 
     scene.add(currentGroup);
-
-    // Update Mesh Stats in UI
     updateMeshStats(currentGroup);
   }
 
@@ -999,8 +942,8 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
   function createThreadedSocketMesh(depth, spec, offset, material) {
     const majorDia = spec.majorDia + offset;
     const pitch = spec.pitch;
-    const majorR = majorDia / 2;
-    const minorR = Math.max(0.5, majorR - (pitch * 0.54));
+    const majorR = Math.max(0.5, majorDia / 2);
+    const minorR = Math.max(0.3, majorR - (pitch * 0.54));
     const wallThick = 1.0;
     const outerR = majorR + wallThick;
 
@@ -1063,7 +1006,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       }
     }
 
-    // 3. Bottom Ring Annulus at Z=0 (Connecting inner thread Z=0 to outer cylinder Z=0)
+    // 3. Bottom Ring Annulus at Z=0
     for (let s = 0; s < segments; s++) {
       const sNext = (s + 1) % segments;
       const in1 = idxInnerStart + s;
@@ -1074,7 +1017,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       indices.push(in2, out2, out1);
     }
 
-    // 4. Top Cap Annulus at Z=depth (Connecting inner thread Z=depth to outer cylinder Z=depth)
+    // 4. Top Cap Annulus at Z=depth
     const topInnerStart = idxInnerStart + rings * segments;
     const topOuterStart = idxOuterStart + rings * segments;
     for (let s = 0; s < segments; s++) {
@@ -1087,7 +1030,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       indices.push(in2, out1, out2);
     }
 
-    // 5. Blind Hole Cap Disc at Z=depth (Closing inner thread top to center (0,0,depth))
+    // 5. Blind Hole Cap Disc at Z=depth
     for (let s = 0; s < segments; s++) {
       const sNext = (s + 1) % segments;
       const in1 = topInnerStart + s;
@@ -1123,18 +1066,19 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
   }
 
   // Convert opentype path to array of Three.js Shapes using Pure 2D Point-in-Polygon Containment
-  function opentypeToThreeShapes(font, text, size) {
+  function opentypeToThreeShapes(font, text, size, letterSpacing = 0, textThickness = 0) {
     const shapes = [];
-    const fontScale = (1 / (font.unitsPerEm || 1000)) * size;
+    const effectiveSize = Math.max(2, size + (textThickness * 2));
+    const fontScale = (1 / (font.unitsPerEm || 1000)) * effectiveSize;
 
     let currentX = 0;
 
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       const glyph = font.charToGlyph(char);
-      const advanceWidth = glyph.advanceWidth ? glyph.advanceWidth * fontScale : size * 0.6;
+      const advanceWidth = (glyph.advanceWidth ? glyph.advanceWidth * fontScale : effectiveSize * 0.6) + letterSpacing;
 
-      const path = glyph.getPath(currentX, 0, size);
+      const path = glyph.getPath(currentX, 0, effectiveSize);
       const shapePath = new THREE.ShapePath();
 
       path.commands.forEach(cmd => {
@@ -1156,12 +1100,10 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
       const subPaths = shapePath.subPaths;
       if (subPaths && subPaths.length > 0) {
-        // Extract 2D sampled points and area for each subpath
         const pathInfos = [];
         subPaths.forEach(sp => {
           const pts = sp.getPoints(16);
           if (pts && pts.length >= 3) {
-            // Deduplicate end point if identical to start point
             if (pts[0].distanceTo(pts[pts.length - 1]) < 1e-4) {
               pts.pop();
             }
@@ -1177,17 +1119,12 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         });
 
         if (pathInfos.length > 0) {
-          // Sort subpaths by area descending (largest outer boundaries first)
           pathInfos.sort((a, b) => b.area - a.area);
-
           const charRootShapes = [];
 
-          // Classify each subpath of this character using point-in-polygon containment
           for (let k = 0; k < pathInfos.length; k++) {
             const pInfo = pathInfos[k];
             let parent = null;
-
-            // Check if test point of pInfo lies inside any already established outer shape
             const testPt = pInfo.points[0];
 
             for (let m = 0; m < charRootShapes.length; m++) {
@@ -1199,12 +1136,10 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
             }
 
             if (parent) {
-              // Inside an outer shape -> add as inner hole!
               const holePath = new THREE.Path();
               holePath.curves = pInfo.subPath.curves;
               parent.shape.holes.push(holePath);
             } else {
-              // Top-level solid outer shape!
               const shape = new THREE.Shape();
               shape.curves = pInfo.subPath.curves;
               charRootShapes.push({
@@ -1230,7 +1165,8 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     const dimX = (bbox.max.x - bbox.min.x).toFixed(1);
     const dimY = (bbox.max.y - bbox.min.y).toFixed(1);
     const dimZ = (bbox.max.z - bbox.min.z).toFixed(1);
-    document.getElementById('stat-dim').textContent = `${dimX} x ${dimY} x ${dimZ} mm`;
+    const elDim = document.getElementById('stat-dim');
+    if (elDim) elDim.textContent = `${dimX} x ${dimY} x ${dimZ} mm`;
 
     let triangles = 0;
     group.traverse(child => {
@@ -1243,7 +1179,131 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         }
       }
     });
-    document.getElementById('stat-tris').textContent = triangles.toLocaleString();
+    const elTris = document.getElementById('stat-tris');
+    if (elTris) elTris.textContent = triangles.toLocaleString();
+  }
+
+  // Human-Readable Shareable Link Generator
+  function generateShareableURL() {
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('text', params.text);
+    url.searchParams.set('font', fontName);
+    url.searchParams.set('style', params.fillMode);
+    url.searchParams.set('extrudeDepth', params.extrudeDepth);
+    url.searchParams.set('fontHeight', params.fontSize);
+    url.searchParams.set('letterSpacing', params.letterSpacing);
+    url.searchParams.set('textThickness', params.textThickness);
+    url.searchParams.set('mirrorText', params.mirrorText ? 'true' : 'false');
+    url.searchParams.set('baseplate', params.baseplateEnabled ? 'true' : 'false');
+    url.searchParams.set('baseProfile', params.baseplateProfile);
+    url.searchParams.set('baseThickness', params.baseplateThickness);
+    url.searchParams.set('basePadding', params.baseplatePadding);
+    url.searchParams.set('baseRadius', params.baseplateRadius);
+    url.searchParams.set('mountHole', params.mountHoleEnabled ? 'true' : 'false');
+    url.searchParams.set('threadStandard', params.threadStandard);
+    url.searchParams.set('tolerance', params.mountHoleOffset);
+    url.searchParams.set('holeDepthRatio', params.mountHoleDepthRatio);
+    url.searchParams.set('textColor', params.textColor);
+    url.searchParams.set('baseColor', params.baseColor);
+    url.searchParams.set('threadColor', params.threadColor);
+
+    return url.toString();
+  }
+
+  // Parse Human-Readable Query Parameters on Startup
+  function loadParamsFromURL() {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (!searchParams.has('text') && !searchParams.has('style')) return false;
+
+    if (searchParams.has('text')) params.text = searchParams.get('text');
+    if (searchParams.has('style')) params.fillMode = searchParams.get('style');
+    if (searchParams.has('extrudeDepth')) params.extrudeDepth = parseFloat(searchParams.get('extrudeDepth'));
+    if (searchParams.has('fontHeight')) params.fontSize = parseFloat(searchParams.get('fontHeight'));
+    if (searchParams.has('letterSpacing')) params.letterSpacing = parseFloat(searchParams.get('letterSpacing'));
+    if (searchParams.has('textThickness')) params.textThickness = parseFloat(searchParams.get('textThickness'));
+    if (searchParams.has('mirrorText')) params.mirrorText = searchParams.get('mirrorText') === 'true';
+    if (searchParams.has('baseplate')) params.baseplateEnabled = searchParams.get('baseplate') === 'true';
+    if (searchParams.has('baseProfile')) params.baseplateProfile = searchParams.get('baseProfile');
+    if (searchParams.has('baseThickness')) params.baseplateThickness = parseFloat(searchParams.get('baseThickness'));
+    if (searchParams.has('basePadding')) params.baseplatePadding = parseFloat(searchParams.get('basePadding'));
+    if (searchParams.has('baseRadius')) params.baseplateRadius = parseFloat(searchParams.get('baseRadius'));
+    if (searchParams.has('mountHole')) params.mountHoleEnabled = searchParams.get('mountHole') === 'true';
+    if (searchParams.has('threadStandard')) params.threadStandard = searchParams.get('threadStandard');
+    if (searchParams.has('tolerance')) params.mountHoleOffset = parseFloat(searchParams.get('tolerance'));
+    if (searchParams.has('holeDepthRatio')) params.mountHoleDepthRatio = parseFloat(searchParams.get('holeDepthRatio'));
+    if (searchParams.has('textColor')) params.textColor = searchParams.get('textColor');
+    if (searchParams.has('baseColor')) params.baseColor = searchParams.get('baseColor');
+    if (searchParams.has('threadColor')) params.threadColor = searchParams.get('threadColor');
+
+    if (params.fillMode === 'engraved') {
+      params.baseplateEnabled = true;
+    }
+
+    return true;
+  }
+
+  function syncUIFromParams() {
+    const inputCustomText = document.getElementById('input-custom-text');
+    if (inputCustomText) inputCustomText.value = params.text;
+
+    const segBtns = document.querySelectorAll('.seg-btn');
+    segBtns.forEach(btn => {
+      const mode = btn.getAttribute('data-mode');
+      if (mode === params.fillMode) btn.classList.add('active');
+      else btn.classList.remove('active');
+    });
+
+    const checkMirrorText = document.getElementById('check-mirror-text');
+    if (checkMirrorText) checkMirrorText.checked = params.mirrorText;
+
+    const selectBaseProfile = document.getElementById('select-baseplate-profile');
+    if (selectBaseProfile) selectBaseProfile.value = params.baseplateProfile;
+
+    bindSliderValue('range-extrude-depth', params.extrudeDepth, 'val-extrude-depth', 'mm');
+    bindSliderValue('range-font-size', params.fontSize, 'val-font-size', 'mm');
+    bindSliderValue('range-letter-spacing', params.letterSpacing, 'val-letter-spacing', 'mm');
+    bindSliderValue('range-text-thickness', params.textThickness, 'val-text-thickness', 'mm');
+    bindSliderValue('range-base-thick', params.baseplateThickness, 'val-base-thick', 'mm');
+    bindSliderValue('range-base-pad', params.baseplatePadding, 'val-base-pad', 'mm');
+    bindSliderValue('range-base-radius', params.baseplateRadius, 'val-base-radius', 'mm');
+    bindSliderValue('range-mounthole-offset', params.mountHoleOffset, 'val-mounthole-offset', 'mm', true);
+
+    const checkBaseplate = document.getElementById('check-baseplate');
+    if (checkBaseplate) {
+      checkBaseplate.checked = params.baseplateEnabled;
+      document.getElementById('baseplate-controls-body').style.display = params.baseplateEnabled ? 'flex' : 'none';
+      if (params.fillMode === 'engraved') {
+        checkBaseplate.disabled = true;
+      }
+    }
+
+    const checkMounthole = document.getElementById('check-mounthole');
+    if (checkMounthole) {
+      checkMounthole.checked = params.mountHoleEnabled;
+      document.getElementById('mounthole-controls-body').style.display = params.mountHoleEnabled ? 'flex' : 'none';
+    }
+
+    const selectThread = document.getElementById('select-thread-standard');
+    if (selectThread) selectThread.value = params.threadStandard;
+
+    const colorText = document.getElementById('color-text');
+    if (colorText) colorText.value = params.textColor;
+
+    const colorBase = document.getElementById('color-base');
+    if (colorBase) colorBase.value = params.baseColor;
+
+    const colorThread = document.getElementById('color-thread');
+    if (colorThread) colorThread.value = params.threadColor;
+  }
+
+  function bindSliderValue(sliderId, value, badgeId, unit = '', showSign = false) {
+    const slider = document.getElementById(sliderId);
+    const badge = document.getElementById(badgeId);
+    if (slider) slider.value = value;
+    if (badge) {
+      const sign = (showSign && value > 0) ? '+' : '';
+      badge.textContent = `${sign}${value.toFixed(1)} ${unit}`.trim();
+    }
   }
 
   // Export 3D Mesh to STL

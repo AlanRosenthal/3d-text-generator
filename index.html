@@ -76,19 +76,19 @@
               <h3>Font Source</h3>
             </div>
             <div class="card-body">
-              <!-- 1. Standard Web Fonts Dropdown -->
+              <!-- 1. Fonts Dropdown -->
               <div class="field-group">
-                <label for="select-google-font">Standard Web Fonts</label>
+                <label for="select-google-font">Fonts</label>
                 <select id="select-google-font" class="studio-select">
-                  <option value="arial" selected>Arial Bold (Clean Sans)</option>
-                  <option value="impact">Impact (Heavy Headline)</option>
-                  <option value="black">Arial Black (Block Sans)</option>
-                  <option value="verdana">Verdana Bold (Wide Sans)</option>
-                  <option value="trebuchet">Trebuchet MS (Humanist Sans)</option>
-                  <option value="georgia">Georgia Bold (Classic Serif)</option>
-                  <option value="courier">Courier Bold (Monospace)</option>
-                  <option value="comic">Comic Sans (Casual Script)</option>
-                  <option value="andale">Andale Mono (Tech Mono)</option>
+                  <option value="arial" selected>Arial</option>
+                  <option value="impact">Impact</option>
+                  <option value="black">Arial Black</option>
+                  <option value="verdana">Verdana</option>
+                  <option value="trebuchet">Trebuchet MS</option>
+                  <option value="georgia">Georgia</option>
+                  <option value="courier">Courier New</option>
+                  <option value="comic">Comic Sans MS</option>
+                  <option value="andale">Andale Mono</option>
                 </select>
               </div>
 
@@ -129,7 +129,7 @@
             <div class="card-body">
               <div class="field-group">
                 <label for="input-custom-text">3D Text</label>
-                <input type="text" id="input-custom-text" class="studio-input text-large" value="3D PRINT" placeholder="Type text..." />
+                <input type="text" id="input-custom-text" class="studio-input text-large" value="Your Text Here" placeholder="Type text..." />
               </div>
 
               <div class="field-group">
@@ -140,7 +140,25 @@
                 </div>
               </div>
 
-              <div class="field-row-toggle" style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+              <!-- Letter Spacing Slider -->
+              <div class="slider-group" style="margin-top: 10px;">
+                <div class="slider-header">
+                  <span>Letter Spacing</span>
+                  <span class="badge" id="val-letter-spacing">0.0 mm</span>
+                </div>
+                <input type="range" id="range-letter-spacing" class="studio-slider" min="-5.0" max="15.0" step="0.5" value="0.0" />
+              </div>
+
+              <!-- Text Thickness Offset Slider -->
+              <div class="slider-group" style="margin-top: 8px;">
+                <div class="slider-header">
+                  <span>Text Thickness</span>
+                  <span class="badge" id="val-text-thickness">0.0 mm</span>
+                </div>
+                <input type="range" id="range-text-thickness" class="studio-slider" min="-1.0" max="3.0" step="0.1" value="0.0" />
+              </div>
+
+              <div class="field-row-toggle" style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
                 <label for="check-mirror-text" style="font-size: 12px; color: var(--text-muted);">Mirror Text (Face-Down 3D Print)</label>
                 <label class="toggle-switch">
                   <input type="checkbox" id="check-mirror-text" />
@@ -175,12 +193,12 @@
             </div>
           </div>
 
-          <!-- Card 4: Baseplate / Backing Plate -->
+          <!-- Card 4: Baseplate -->
           <div class="studio-card">
             <div class="card-header">
               <div class="card-header-title">
                 <span class="card-num">4</span>
-                <h3>Solid Baseplate</h3>
+                <h3>Baseplate</h3>
               </div>
               <label class="toggle-switch">
                 <input type="checkbox" id="check-baseplate" checked />
@@ -188,6 +206,15 @@
               </label>
             </div>
             <div class="card-body" id="baseplate-controls-body">
+              <div class="field-group">
+                <label for="select-baseplate-profile">Corner Profile</label>
+                <select id="select-baseplate-profile" class="studio-select">
+                  <option value="fillet" selected>Fillet / Round</option>
+                  <option value="chamfer">Chamfer</option>
+                  <option value="square">Square</option>
+                </select>
+              </div>
+
               <div class="slider-group">
                 <div class="slider-header">
                   <span>Base Thickness</span>
@@ -206,7 +233,7 @@
 
               <div class="slider-group">
                 <div class="slider-header">
-                  <span>Corner Radius</span>
+                  <span>Corner Radius / Cut</span>
                   <span class="badge" id="val-base-radius">4.0 mm</span>
                 </div>
                 <input type="range" id="range-base-radius" class="studio-slider" min="0" max="15" step="0.5" value="4" />
@@ -241,13 +268,13 @@
                 </select>
               </div>
 
-              <!-- 3D Print Tolerance Offset -->
+              <!-- Tolerance Compensation -->
               <div class="slider-group">
                 <div class="slider-header">
-                  <span>3D Print Tolerance Compensation</span>
+                  <span>Tolerance Compensation</span>
                   <span class="badge" id="val-mounthole-offset">+0.20 mm</span>
                 </div>
-                <input type="range" id="range-mounthole-offset" class="studio-slider" min="0.0" max="0.8" step="0.05" value="0.2" />
+                <input type="range" id="range-mounthole-offset" class="studio-slider" min="-0.50" max="0.50" step="0.05" value="0.2" />
               </div>
 
               <!-- Hole Depth Ratio -->
@@ -268,14 +295,18 @@
               <h3>Preview Colors</h3>
             </div>
             <div class="card-body">
-              <div class="color-pickers-row">
-                <div class="color-picker-item">
+              <div class="color-pickers-row" style="display: flex; gap: 12px;">
+                <div class="color-picker-item" style="flex: 1;">
                   <label for="color-text">Text Color</label>
                   <input type="color" id="color-text" value="#818cf8" />
                 </div>
-                <div class="color-picker-item">
+                <div class="color-picker-item" style="flex: 1;">
                   <label for="color-base">Baseplate</label>
                   <input type="color" id="color-base" value="#475569" />
+                </div>
+                <div class="color-picker-item" style="flex: 1;">
+                  <label for="color-thread">Thread Hole</label>
+                  <input type="color" id="color-thread" value="#f59e0b" />
                 </div>
               </div>
             </div>
