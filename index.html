@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Text STL Studio — daFont & Custom Font 3D Print Generator</title>
+  <meta name="description" content="Generate 3D printable STL files from text using fonts from daFont or custom TTF/OTF files directly in your browser.">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Navigation Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <span class="brand-icon">📦</span>
+        <div>
+          <h1 class="brand-title">3D Text STL Studio</h1>
+          <p class="brand-subtitle">Turn daFont & Custom Fonts into 3D Printable STL Files</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="status-badge" id="app-status">Ready</span>
+        <button class="btn btn-ghost" id="btn-share-link" title="Copy Shareable Link">🔗 Share Link</button>
+      </div>
+    </header>
+
+    <!-- Main Studio Split View -->
+    <main class="studio-layout">
+      <!-- Viewport Panel (Left) -->
+      <section class="viewport-panel">
+        <div class="viewport-toolbar">
+          <div class="toolbar-left">
+            <span class="viewport-hint">🖱️ Left-drag: Rotate | Right-drag: Pan | Scroll: Zoom</span>
+          </div>
+          <div class="toolbar-right">
+            <button class="tool-btn" id="tool-reset-cam" title="Reset Camera View">🎥 Reset View</button>
+            <button class="tool-btn" id="tool-toggle-grid" title="Toggle Grid Helper">🔲 Grid</button>
+            <button class="tool-btn" id="tool-toggle-shadow" title="Toggle Lighting Mode">☀️ Lighting</button>
+          </div>
+        </div>
+
+        <div class="viewport-container" id="3d-viewport-container">
+          <canvas id="webgl-canvas"></canvas>
+          <div class="viewport-loader" id="viewport-loader" style="display: none;">
+            <div class="loader-spinner"></div>
+            <span id="loader-msg">Loading Font & Rendering 3D Mesh...</span>
+          </div>
+        </div>
+
+        <!-- 3D Mesh Dimensions Stats Bar -->
+        <div class="mesh-stats-bar">
+          <div class="stat-item">
+            <span class="stat-label">Bounding Box:</span>
+            <span class="stat-val" id="stat-dim">0 x 0 x 0 mm</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Triangles:</span>
+            <span class="stat-val" id="stat-tris">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Print Format:</span>
+            <span class="stat-val highlight">Binary STL (.stl)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Controls Sidebar (Right) -->
+      <aside class="controls-panel">
+        <div class="controls-scroll-area">
+          
+          <!-- Card 1: Font Source -->
+          <div class="studio-card">
+            <div class="card-header">
+              <span class="card-num">1</span>
+              <h3>Font Source</h3>
+            </div>
+            <div class="card-body">
+              <!-- Standard Web Fonts Dropdown (First Option) -->
+              <div class="field-group">
+                <label for="select-google-font">Pick a Standard Web Font</label>
+                <select id="select-google-font" class="studio-select">
+                  <option value="lib/fonts/Arial-Bold.ttf" selected>Arial Bold (Clean Sans)</option>
+                  <option value="lib/fonts/Impact-Bold.ttf">Impact (Heavy Headline)</option>
+                  <option value="lib/fonts/Arial-Black.ttf">Arial Black (Block Sans)</option>
+                  <option value="lib/fonts/Verdana-Bold.ttf">Verdana Bold (Wide Sans)</option>
+                  <option value="lib/fonts/Trebuchet-Bold.ttf">Trebuchet MS (Humanist Sans)</option>
+                  <option value="lib/fonts/Georgia-Bold.ttf">Georgia Bold (Classic Serif)</option>
+                  <option value="lib/fonts/Courier-Bold.ttf">Courier Bold (Monospace)</option>
+                  <option value="lib/fonts/ComicSans-Bold.ttf">Comic Sans (Casual Script)</option>
+                  <option value="lib/fonts/Andale-Mono.ttf">Andale Mono (Tech Mono)</option>
+                </select>
+              </div>
+
+              <!-- Drag & Drop Zone -->
+              <div class="font-dropzone" id="font-dropzone" style="margin-top: 12px;">
+                <input type="file" id="font-file-input" accept=".ttf,.otf" hidden />
+                <span class="drop-icon">📁</span>
+                <div class="drop-primary-text" id="drop-primary">Or Drag & drop custom TTF / OTF font</div>
+                <div class="drop-sub-text" id="drop-sub">click to browse local files</div>
+              </div>
+
+              <!-- daFont Custom URL Importer -->
+              <div class="url-import-row" style="margin-top: 10px;">
+                <input type="url" id="dafont-url-input" class="studio-input" placeholder="Or paste custom daFont URL..." />
+                <button class="btn btn-secondary" id="btn-import-url">Import</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Custom Text & Fill Style -->
+          <div class="studio-card">
+            <div class="card-header">
+              <span class="card-num">2</span>
+              <h3>Text & Fill Style</h3>
+            </div>
+            <div class="card-body">
+              <div class="field-group">
+                <label for="input-custom-text">3D Text</label>
+                <input type="text" id="input-custom-text" class="studio-input text-large" value="3D PRINT" placeholder="Type text..." />
+              </div>
+
+              <div class="field-group">
+                <label>Text Fill Mode ("Fill In")</label>
+                <div class="segmented-control">
+                  <button type="button" class="seg-btn active" data-mode="embossed">Embossed (Raised)</button>
+                  <button type="button" class="seg-btn" data-mode="recessed">Flush Infill</button>
+                  <button type="button" class="seg-btn" data-mode="hollow">Hollow Outline</button>
+                </div>
+              </div>
+
+              <div class="field-row-toggle" style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                <label for="check-mirror-text" style="font-size: 12px; color: var(--text-muted);">Mirror Text (Face-Down 3D Print)</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="check-mirror-text" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Dimensions -->
+          <div class="studio-card">
+            <div class="card-header">
+              <span class="card-num">3</span>
+              <h3>Dimensions & Scale</h3>
+            </div>
+            <div class="card-body">
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span>Extrusion Depth</span>
+                  <span class="badge" id="val-extrude-depth">5.0 mm</span>
+                </div>
+                <input type="range" id="range-extrude-depth" class="studio-slider" min="1" max="30" step="0.5" value="5" />
+              </div>
+
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span>Font Height</span>
+                  <span class="badge" id="val-font-size">25 mm</span>
+                </div>
+                <input type="range" id="range-font-size" class="studio-slider" min="5" max="100" step="1" value="25" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 4: Baseplate / Backing Plate -->
+          <div class="studio-card">
+            <div class="card-header">
+              <div class="card-header-title">
+                <span class="card-num">4</span>
+                <h3>Solid Baseplate</h3>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="check-baseplate" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="card-body" id="baseplate-controls-body">
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span>Base Thickness</span>
+                  <span class="badge" id="val-base-thick">2.0 mm</span>
+                </div>
+                <input type="range" id="range-base-thick" class="studio-slider" min="0.5" max="15" step="0.5" value="2" />
+              </div>
+
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span>Base Padding</span>
+                  <span class="badge" id="val-base-pad">4.0 mm</span>
+                </div>
+                <input type="range" id="range-base-pad" class="studio-slider" min="1" max="20" step="0.5" value="4" />
+              </div>
+
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span>Corner Radius</span>
+                  <span class="badge" id="val-base-radius">4.0 mm</span>
+                </div>
+                <input type="range" id="range-base-radius" class="studio-slider" min="0" max="15" step="0.5" value="4" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 5: Tapped Screw Mount Hole (Back Side) -->
+          <div class="studio-card">
+            <div class="card-header">
+              <div class="card-header-title">
+                <span class="card-num">5</span>
+                <h3>Tapped Screw Hole (Back Side)</h3>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="check-mounthole" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="card-body" id="mounthole-controls-body" style="display: none;">
+              <!-- Standard Thread Option -->
+              <div class="field-group">
+                <label for="select-thread-standard">Thread Standard Option</label>
+                <select id="select-thread-standard" class="studio-select">
+                  <option value="1/4-20">1/4"-20 UNC (Camera/Tripod Mount)</option>
+                  <option value="m6">M6 x 1.0 Metric</option>
+                  <option value="m5">M5 x 0.8 Metric</option>
+                  <option value="m4">M4 x 0.7 Metric</option>
+                  <option value="m3">M3 x 0.5 Metric</option>
+                  <option value="10-24">#10-24 UNC Machine Screw</option>
+                  <option value="custom">Custom Diameter</option>
+                </select>
+              </div>
+
+              <!-- 3D Print Tolerance Offset -->
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span>3D Print Tolerance Compensation</span>
+                  <span class="badge" id="val-mounthole-offset">+0.20 mm</span>
+                </div>
+                <input type="range" id="range-mounthole-offset" class="studio-slider" min="0.0" max="0.8" step="0.05" value="0.2" />
+              </div>
+
+              <!-- Hole Depth Ratio -->
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span>Hole Depth Ratio</span>
+                  <span class="badge" id="val-mounthole-depth-ratio">90% (Blind Hole)</span>
+                </div>
+                <input type="range" id="range-mounthole-depth-ratio" class="studio-slider" min="50" max="100" step="5" value="90" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 6: Colors & Preview Material -->
+          <div class="studio-card">
+            <div class="card-header">
+              <span class="card-num">6</span>
+              <h3>Preview Colors</h3>
+            </div>
+            <div class="card-body">
+              <div class="color-pickers-row">
+                <div class="color-picker-item">
+                  <label for="color-text">Text Color</label>
+                  <input type="color" id="color-text" value="#818cf8" />
+                </div>
+                <div class="color-picker-item">
+                  <label for="color-base">Baseplate</label>
+                  <input type="color" id="color-base" value="#475569" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Export Action Footer -->
+        <div class="controls-footer">
+          <div class="footer-btn-row" style="display: flex; gap: 10px;">
+            <button class="btn btn-secondary" id="btn-share-link-footer" style="flex: 1;" title="Copy Shareable Link">🔗 Share Link</button>
+            <button class="btn btn-export" id="btn-export-stl" style="flex: 2;">
+              <span>💾 Download .STL</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+  </div>
+
+  <!-- Local Offline JS Dependencies -->
+  <script src="lib/opentype.min.js"></script>
+  <script src="lib/jszip.min.js"></script>
+  <script src="lib/three.min.js"></script>
+  <script src="lib/OrbitControls.js"></script>
+  <script src="lib/STLExporter.js"></script>
+  <script src="lib/defaultFontData.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
