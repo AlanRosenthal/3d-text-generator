@@ -76,35 +76,45 @@
               <h3>Font Source</h3>
             </div>
             <div class="card-body">
-              <!-- Standard Web Fonts Dropdown (First Option) -->
+              <!-- 1. Standard Web Fonts Dropdown -->
               <div class="field-group">
-                <label for="select-google-font">Pick a Standard Web Font</label>
+                <label for="select-google-font">Standard Web Fonts</label>
                 <select id="select-google-font" class="studio-select">
-                  <option value="lib/fonts/Arial-Bold.ttf" selected>Arial Bold (Clean Sans)</option>
-                  <option value="lib/fonts/Impact-Bold.ttf">Impact (Heavy Headline)</option>
-                  <option value="lib/fonts/Arial-Black.ttf">Arial Black (Block Sans)</option>
-                  <option value="lib/fonts/Verdana-Bold.ttf">Verdana Bold (Wide Sans)</option>
-                  <option value="lib/fonts/Trebuchet-Bold.ttf">Trebuchet MS (Humanist Sans)</option>
-                  <option value="lib/fonts/Georgia-Bold.ttf">Georgia Bold (Classic Serif)</option>
-                  <option value="lib/fonts/Courier-Bold.ttf">Courier Bold (Monospace)</option>
-                  <option value="lib/fonts/ComicSans-Bold.ttf">Comic Sans (Casual Script)</option>
-                  <option value="lib/fonts/Andale-Mono.ttf">Andale Mono (Tech Mono)</option>
+                  <option value="arial" selected>Arial Bold (Clean Sans)</option>
+                  <option value="impact">Impact (Heavy Headline)</option>
+                  <option value="black">Arial Black (Block Sans)</option>
+                  <option value="verdana">Verdana Bold (Wide Sans)</option>
+                  <option value="trebuchet">Trebuchet MS (Humanist Sans)</option>
+                  <option value="georgia">Georgia Bold (Classic Serif)</option>
+                  <option value="courier">Courier Bold (Monospace)</option>
+                  <option value="comic">Comic Sans (Casual Script)</option>
+                  <option value="andale">Andale Mono (Tech Mono)</option>
                 </select>
               </div>
 
-              <!-- Drag & Drop Zone -->
-              <div class="font-dropzone" id="font-dropzone" style="margin-top: 12px;">
-                <input type="file" id="font-file-input" accept=".ttf,.otf" hidden />
-                <span class="drop-icon">📁</span>
-                <div class="drop-primary-text" id="drop-primary">Or Drag & drop custom TTF / OTF font</div>
-                <div class="drop-sub-text" id="drop-sub">click to browse local files</div>
+              <!-- 2. daFont Link / Name Importer -->
+              <div class="field-group" style="margin-top: 12px;">
+                <label for="dafont-url-input">daFont Link or Font Name</label>
+                <div class="url-import-row">
+                  <input type="url" id="dafont-url-input" class="studio-input" placeholder="Paste daFont link or name (e.g. Midstar)..." />
+                  <button class="btn btn-secondary" id="btn-import-url">Import</button>
+                </div>
               </div>
 
-              <!-- daFont Custom URL Importer -->
-              <div class="url-import-row" style="margin-top: 10px;">
-                <input type="url" id="dafont-url-input" class="studio-input" placeholder="Or paste custom daFont URL..." />
-                <button class="btn btn-secondary" id="btn-import-url">Import</button>
+              <!-- 3. Upload Custom Font Button -->
+              <div class="field-group" style="margin-top: 12px;">
+                <label>Upload Custom TTF / OTF</label>
+                <button class="btn btn-outline" id="btn-upload-font" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <span>📁 Browse / Upload Custom Font</span>
+                </button>
+                <input type="file" id="font-file-input" accept=".ttf,.otf" hidden />
+                <div class="drop-sub-text" id="drop-sub" style="margin-top: 6px; text-align: center;">Active Font: Arial Bold (Default)</div>
               </div>
+
+              <!-- 4. Clear / Reset to Default Font Button -->
+              <button class="btn btn-ghost" id="btn-reset-default-font" style="width: 100%; margin-top: 10px; color: var(--text-muted);">
+                <span>🔄 Reset to Default Font</span>
+              </button>
             </div>
           </div>
 

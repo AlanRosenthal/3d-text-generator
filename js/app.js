@@ -29,7 +29,7 @@
     text: '3D PRINT',
     extrudeDepth: 5.0,
     fontSize: 25.0,
-    fillMode: 'embossed', // 'embossed', 'recessed', 'hollow'
+    fillMode: 'embossed', // 'embossed', 'engraved'
     mirrorText: false,
     baseplateEnabled: true,
     baseplateThickness: 2.0,
@@ -50,8 +50,8 @@
     setupDropzone();
     setupControlListeners();
 
-    // Load zero-fetch embedded default font instantly (file:// protocol safe!)
-    loadEmbeddedDefaultFont();
+    // Load zero-fetch embedded default font instantly (100% file:// protocol safe!)
+    loadEmbeddedFont('arial');
 
     // Check if URL contains shareable settings
     const hasSharedParams = loadParamsFromURL();
@@ -61,9 +61,28 @@
     }
   });
 
-  // Load zero-fetch embedded default font from RAM
-  function loadEmbeddedDefaultFont() {
-    if (window.DEFAULT_FONT_BASE64) {
+  // Load zero-fetch embedded font directly from RAM (100% file:// protocol safe!)
+  function loadEmbeddedFont(fontKey = 'arial') {
+    const key = fontKey || 'arial';
+    if (window.EMBEDDED_FONTS && window.EMBEDDED_FONTS[key]) {
+      try {
+        const item = window.EMBEDDED_FONTS[key];
+        const binaryString = atob(item.b64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        parsedFont = opentype.parse(bytes.buffer);
+        fontName = item.name;
+        document.getElementById('drop-primary').textContent = `Font: ${item.name} (Embedded)`;
+        setStatus(`Loaded: ${item.name}`);
+        update3DMesh();
+        return true;
+      } catch (err) {
+        console.error('Embedded font parse error:', err);
+      }
+    } else if (window.DEFAULT_FONT_BASE64) {
       try {
         const binaryString = atob(window.DEFAULT_FONT_BASE64);
         const len = binaryString.length;
@@ -172,28 +191,39 @@
       }
     });
 
-    // Google Web Fonts Dropdown
+    // Standard Web Fonts Dropdown (100% RAM Embedded)
     const selectGoogleFont = document.getElementById('select-google-font');
     if (selectGoogleFont) {
       selectGoogleFont.addEventListener('change', (e) => {
-        const url = e.target.value;
-        if (url) {
-          const opt = e.target.options[e.target.selectedIndex];
-          const name = opt ? opt.text.split(' (')[0] : 'Google Font';
-          loadFontFromUrl(url, name);
+        const fontKey = e.target.value;
+        if (fontKey) {
+          loadEmbeddedFont(fontKey);
         }
       });
     }
 
-    // daFont Custom URL Importer Button
-    document.getElementById('btn-import-url').addEventListener('click', () => {
-      const urlInput = document.getElementById('dafont-url-input').value.trim();
+    // daFont Custom URL Importer Button & Enter Key Listener
+    const btnImportUrl = document.getElementById('btn-import-url');
+    const dafontUrlInput = document.getElementById('dafont-url-input');
+
+    const triggerImport = () => {
+      const urlInput = dafontUrlInput ? dafontUrlInput.value.trim() : '';
       if (!urlInput) {
-        alert('Please paste a daFont link or ZIP URL.');
+        alert('Please paste a daFont link, slug, or ZIP URL.');
         return;
       }
       importFromDafontURL(urlInput);
-    });
+    };
+
+    if (btnImportUrl) btnImportUrl.addEventListener('click', triggerImport);
+    if (dafontUrlInput) {
+      dafontUrlInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          triggerImport();
+        }
+      });
+    }
   }
 
   // Handle local TTF / OTF font file
@@ -223,57 +253,91 @@
     reader.readAsArrayBuffer(file);
   }
 
-  // Import font from daFont URL or direct ZIP
-  async function importFromDafontURL(url) {
-    let zipUrl = url;
-    if (url.includes('dafont.com') && !url.includes('dl.dafont.com')) {
-      const match = url.match(/dafont\.com\/([^/]+)\.font/);
-      const fontSlug = match ? match[1] : 'font';
-      zipUrl = `https://dl.dafont.com/dl/?f=${fontSlug}`;
-      fontName = fontSlug.replace(/_/g, ' ');
+  // Import font from daFont URL, slug, or direct ZIP/TTF
+  async function importFromDafontURL(userInput) {
+    const inputStr = userInput.trim();
+    if (!inputStr) return;
+
+    let slug = 'font';
+    if (inputStr.includes('dafont.com') || inputStr.includes('f=')) {
+      const match = inputStr.match(/f=([a-zA-Z0-9_-]+)/) || inputStr.match(/dafont\.com\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1] && match[1] !== 'dl') {
+        slug = match[1].replace(/\.font$/i, '');
+      }
+    } else if (inputStr.match(/^[a-zA-Z0-9_-]+$/)) {
+      slug = inputStr;
     }
 
-    showLoader('Fetching daFont package...');
+    const zipUrl = (inputStr.startsWith('http://') || inputStr.startsWith('https://')) && inputStr.match(/\.(zip|ttf|otf)$/i)
+      ? inputStr
+      : `https://dl.dafont.com/dl/?f=${slug}`;
+
+    const displayName = slug.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    showLoader(`Fetching ${displayName}...`);
+
     try {
-      let response;
-      try {
-        response = await fetch(zipUrl);
-      } catch {
-        const corsProxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(zipUrl)}`;
-        response = await fetch(corsProxy);
-      }
+      let response = null;
+      const proxies = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(zipUrl)}`,
+        `https://corsproxy.io/?${encodeURIComponent(zipUrl)}`,
+        `https://proxy.cors.sh/${zipUrl}`
+      ];
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const arrayBuffer = await response.arrayBuffer();
-
-      showLoader('Extracting TTF/OTF from ZIP...');
-      const zip = await JSZip.loadAsync(arrayBuffer);
-
-      let fontZipFile = null;
-      for (const filename of Object.keys(zip.files)) {
-        if (!zip.files[filename].dir && !filename.startsWith('__MACOSX') && !filename.startsWith('._')) {
-          const lower = filename.toLowerCase();
-          if (lower.endsWith('.ttf') || lower.endsWith('.otf')) {
-            fontZipFile = zip.files[filename];
-            break;
-          }
+      for (const proxy of proxies) {
+        try {
+          response = await fetch(proxy);
+          if (response && response.ok) break;
+        } catch {
+          // try next proxy
         }
       }
 
-      if (!fontZipFile) throw new Error('No .ttf or .otf file found in ZIP package.');
+      if (!response || !response.ok) {
+        throw new Error('Could not download font package via CORS proxies.');
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+
+      // Check magic bytes to see if response is raw TTF/OTF font file
+      const firstBytes = new Uint8Array(arrayBuffer.slice(0, 4));
+      const magic = String.fromCharCode(...firstBytes);
 
       showLoader('Parsing font glyphs...');
-      const fontBuffer = await fontZipFile.async('arraybuffer');
-      parsedFont = opentype.parse(fontBuffer);
 
-      document.getElementById('drop-primary').textContent = `daFont: ${fontName}`;
+      if (magic === 'OTTO' || magic === '\x00\x01\x00\x00' || magic === 'true' || magic.startsWith('\x00\x01')) {
+        parsedFont = opentype.parse(arrayBuffer);
+      } else {
+        // Extract from ZIP
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        let fontZipFile = null;
+
+        // Search for TTF / OTF inside ZIP
+        for (const filename of Object.keys(zip.files)) {
+          if (!zip.files[filename].dir && !filename.startsWith('__MACOSX') && !filename.startsWith('._')) {
+            const lower = filename.toLowerCase();
+            if (lower.endsWith('.ttf') || lower.endsWith('.otf')) {
+              fontZipFile = zip.files[filename];
+              break;
+            }
+          }
+        }
+
+        if (!fontZipFile) throw new Error('No .ttf or .otf file found inside ZIP package.');
+
+        const fontBuffer = await fontZipFile.async('arraybuffer');
+        parsedFont = opentype.parse(fontBuffer);
+      }
+
+      fontName = displayName;
+      document.getElementById('drop-primary').textContent = `daFont: ${displayName}`;
       hideLoader();
-      setStatus(`Imported: ${fontName}`);
+      setStatus(`Imported: ${displayName}`);
       update3DMesh();
     } catch (err) {
-      console.error('URL import error:', err);
+      console.error('daFont import error:', err);
       hideLoader();
-      alert('Could not download font package: ' + err.message + '\n\nTip: Download the ZIP from daFont and drag the .TTF file into the dropzone!');
+      alert(`Could not import daFont "${displayName}": ${err.message}\n\nTip: You can download the ZIP directly from daFont and drag the .TTF file into the dropzone!`);
     }
   }
 
@@ -305,7 +369,7 @@
     } catch (err) {
       console.warn('URL font load notice:', err.message);
       hideLoader();
-      loadEmbeddedDefaultFont();
+      loadEmbeddedFont('arial');
     }
   }
 
@@ -577,8 +641,12 @@
     const shapes = opentypeToThreeShapes(parsedFont, params.text, params.fontSize, params.mirrorText);
     if (!shapes || shapes.length === 0) return;
 
+    const isEngraved = (params.fillMode === 'engraved');
+    const totalBaseDepth = params.baseplateThickness;
+    const textDepth = isEngraved ? Math.min(params.extrudeDepth, totalBaseDepth * 0.6) : params.extrudeDepth;
+
     const extrudeSettings = {
-      depth: params.extrudeDepth,
+      depth: textDepth,
       bevelEnabled: false
     };
 
@@ -594,19 +662,20 @@
     textGeometry.translate(-centerX, -centerY, 0);
 
     // Material setup
-    let textMatColor = (params.fillMode === 'recessed') ? '#38bdf8' : params.textColor;
     const textMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(textMatColor),
+      color: new THREE.Color(params.textColor),
       roughness: 0.3,
       metalness: 0.2
     });
 
     const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-    if (params.fillMode === 'recessed') {
-      textMesh.position.z = params.baseplateEnabled ? (params.baseplateThickness - 0.1) : 0;
+    if (isEngraved) {
+      // Engraved: carved/recessed into the top surface of the baseplate
+      textMesh.position.z = params.baseplateEnabled ? Math.max(0.1, totalBaseDepth - textDepth) : 0;
     } else {
-      textMesh.position.z = params.baseplateEnabled ? params.baseplateThickness : 0;
+      // Embossed: raised on top of the baseplate
+      textMesh.position.z = params.baseplateEnabled ? totalBaseDepth : 0;
     }
 
     currentGroup.add(textMesh);
@@ -616,8 +685,6 @@
       const pad = params.baseplatePadding;
       const baseWidth = textWidth + (pad * 2);
       const baseHeight = textHeight + (pad * 2);
-      const totalBaseDepth = (params.fillMode === 'recessed') ? (params.baseplateThickness + params.extrudeDepth) : params.baseplateThickness;
-      const spec = threadStandards[params.threadStandard] || threadStandards['1/4-20'];
 
       const hw = baseWidth / 2;
       const hh = baseHeight / 2;
@@ -634,6 +701,7 @@
       baseShape.lineTo(-hw, -hh + rad);
       baseShape.quadraticCurveTo(-hw, -hh, -hw + rad, -hh);
 
+      const spec = threadStandards[params.threadStandard] || threadStandards['1/4-20'];
       const majorDia = spec.majorDia + params.mountHoleOffset;
       const majorR = majorDia / 2;
       const outerPlugR = majorR + 1.0; // Solid plug outer wall radius
@@ -794,30 +862,123 @@
     return socketMesh;
   }
 
-  // Convert opentype path to array of Three.js Shapes (with optional 2D horizontal mirroring)
+  // Pure 2D Point-in-Polygon Containment Test (Ray-casting Algorithm)
+  function pointInPolygon(point, vs) {
+    const x = point.x !== undefined ? point.x : point[0];
+    const y = point.y !== undefined ? point.y : point[1];
+    let inside = false;
+
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+      const xi = vs[i].x !== undefined ? vs[i].x : vs[i][0];
+      const yi = vs[i].y !== undefined ? vs[i].y : vs[i][1];
+      const xj = vs[j].x !== undefined ? vs[j].x : vs[j][0];
+      const yj = vs[j].y !== undefined ? vs[j].y : vs[j][1];
+
+      const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      if (intersect) inside = !inside;
+    }
+
+    return inside;
+  }
+
+  // Convert opentype path to array of Three.js Shapes using Pure 2D Point-in-Polygon Containment
   function opentypeToThreeShapes(font, text, size, mirror = false) {
-    const path = font.getPath(text, 0, 0, size);
-    const shapePath = new THREE.ShapePath();
+    const shapes = [];
+    const fontScale = (1 / (font.unitsPerEm || 1000)) * size;
 
-    path.commands.forEach(cmd => {
-      const mx = mirror ? -cmd.x : cmd.x;
-      const mx1 = mirror ? -cmd.x1 : cmd.x1;
-      const mx2 = mirror ? -cmd.x2 : cmd.x2;
-      const my = -cmd.y;
-      const my1 = -cmd.y1;
-      const my2 = -cmd.y2;
+    let currentX = 0;
 
-      switch (cmd.type) {
-        case 'M': shapePath.moveTo(mx, my); break;
-        case 'L': shapePath.lineTo(mx, my); break;
-        case 'Q': shapePath.quadraticCurveTo(mx1, my1, mx, my); break;
-        case 'C': shapePath.bezierCurveTo(mx1, my1, mx2, my2, mx, my); break;
-        case 'Z': if (shapePath.currentPath) shapePath.currentPath.closePath(); break;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const glyph = font.charToGlyph(char);
+      const advanceWidth = glyph.advanceWidth ? glyph.advanceWidth * fontScale : size * 0.6;
+
+      const path = glyph.getPath(currentX, 0, size);
+      const shapePath = new THREE.ShapePath();
+
+      path.commands.forEach(cmd => {
+        const mx = mirror ? -cmd.x : cmd.x;
+        const mx1 = mirror ? -cmd.x1 : cmd.x1;
+        const mx2 = mirror ? -cmd.x2 : cmd.x2;
+        const my = -cmd.y;
+        const my1 = -cmd.y1;
+        const my2 = -cmd.y2;
+
+        switch (cmd.type) {
+          case 'M': shapePath.moveTo(mx, my); break;
+          case 'L': shapePath.lineTo(mx, my); break;
+          case 'Q': shapePath.quadraticCurveTo(mx1, my1, mx, my); break;
+          case 'C': shapePath.bezierCurveTo(mx1, my1, mx2, my2, mx, my); break;
+          case 'Z': if (shapePath.currentPath) shapePath.currentPath.closePath(); break;
+        }
+      });
+
+      const subPaths = shapePath.subPaths;
+      if (subPaths && subPaths.length > 0) {
+        // Extract 2D sampled points and area for each subpath
+        const pathInfos = [];
+        subPaths.forEach(sp => {
+          const pts = sp.getPoints(16);
+          if (pts && pts.length >= 3) {
+            // Deduplicate end point if identical to start point
+            if (pts[0].distanceTo(pts[pts.length - 1]) < 1e-4) {
+              pts.pop();
+            }
+            if (pts.length >= 3) {
+              const area = Math.abs(THREE.ShapeUtils.area(pts));
+              pathInfos.push({
+                subPath: sp,
+                points: pts,
+                area: area
+              });
+            }
+          }
+        });
+
+        if (pathInfos.length > 0) {
+          // Sort subpaths by area descending (largest outer boundaries first)
+          pathInfos.sort((a, b) => b.area - a.area);
+
+          const charRootShapes = [];
+
+          // Classify each subpath of this character using point-in-polygon containment
+          for (let k = 0; k < pathInfos.length; k++) {
+            const pInfo = pathInfos[k];
+            let parent = null;
+
+            // Check if test point of pInfo lies inside any already established outer shape
+            const testPt = pInfo.points[0];
+
+            for (let m = 0; m < charRootShapes.length; m++) {
+              const rShape = charRootShapes[m];
+              if (pointInPolygon(testPt, rShape.points)) {
+                parent = rShape;
+                break;
+              }
+            }
+
+            if (parent) {
+              // Inside an outer shape -> add as inner hole!
+              const holePath = new THREE.Path(pInfo.points);
+              parent.shape.holes.push(holePath);
+            } else {
+              // Top-level solid outer shape!
+              const shape = new THREE.Shape(pInfo.points);
+              charRootShapes.push({
+                shape: shape,
+                points: pInfo.points
+              });
+            }
+          }
+
+          charRootShapes.forEach(r => shapes.push(r.shape));
+        }
       }
-    });
 
-    // Pass !mirror so Three.js correctly matches reversed winding order of negated 2D X coordinates
-    return shapePath.toShapes(!mirror);
+      currentX += mirror ? -advanceWidth : advanceWidth;
+    }
+
+    return shapes;
   }
 
   // Calculate & Update Stats Bar
