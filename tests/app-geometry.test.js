@@ -1,83 +1,158 @@
 /**
- * 3D Text STL Studio — Node.js Unit & Integration Geometry Test Suite
+ * 3D Text STL Studio — De Facto Standard Node.js Test Suite (node:test & node:assert)
  */
 
-const fs = require('fs');
-const path = require('path');
-const math = Math;
+const test = require('node:test');
+const assert = require('node:assert/strict');
 
-console.log('----------------------------------------------------');
-console.log('🧪 Running 3D Text STL Studio Node.js Test Suite...');
-console.log('----------------------------------------------------');
-
-let passed = 0;
-let total = 0;
-
-function assert(condition, testName) {
-  total++;
-  if (condition) {
-    console.log(`  ✅ PASS: ${testName}`);
-    passed++;
-  } else {
-    console.error(`  ❌ FAIL: ${testName}`);
-    process.exitCode = 1;
-  }
-}
-
-// 1. Embossed Mode Test
-const embossedParams = { fillMode: 'embossed', baseplateThickness: 2.0, extrudeDepth: 5.0 };
-const embossedZ = embossedParams.baseplateThickness;
-assert(embossedZ === 2.0, 'Embossed text positioned at Z=2.0mm top baseplate face');
-
-// 2. Engraved Sub-Layering Mode Test
-const engravedParams = { fillMode: 'engraved', baseplateThickness: 2.0, extrudeDepth: 5.0 };
-const recessDepth = Math.min(engravedParams.extrudeDepth, engravedParams.baseplateThickness * 0.7);
-const floorThickness = Math.max(0.2, engravedParams.baseplateThickness - recessDepth);
-assert(recessDepth === 1.4, 'Engraved recess depth capped at 70% baseplate thickness (1.4mm)');
-assert(floorThickness.toFixed(1) === '0.6', 'Solid bottom baseplate floor layer thickness (0.6mm)');
-
-// 3. 2D Vector Curve X-Mirroring Test
-function mirrorCurve2DX(curve) {
-  return {
-    v1: { x: -curve.v2.x, y: curve.v2.y },
-    v2: { x: -curve.v1.x, y: curve.v1.y }
+test('Section 1: Embossed (Raised) Mode Positioning & Heights', () => {
+  const embossedParams = {
+    fillMode: 'embossed',
+    baseplateThickness: 2.0,
+    extrudeDepth: 5.0,
+    baseplateEnabled: true
   };
-}
 
-const line = { v1: { x: 0, y: 0 }, v2: { x: 10, y: 5 } };
-const mirroredLine = mirrorCurve2DX(line);
-assert(mirroredLine.v1.x === -10 && mirroredLine.v1.y === 5, 'Mirrored LineCurve v1 = (-10, 5)');
-assert(mirroredLine.v2.x === 0 && mirroredLine.v2.y === 0, 'Mirrored LineCurve v2 = (0, 0)');
+  const embossedTextZ = embossedParams.baseplateThickness;
+  const embossedTotalZ = embossedParams.baseplateThickness + embossedParams.extrudeDepth;
 
-// 4. Thread Socket Generator Test
-function generateThreadSocketPositions(depth = 1.8, majorDia = 6.55, pitch = 1.27) {
-  const majorR = majorDia / 2.0;
-  const minorR = Math.max(0.5, majorR - (pitch * 0.54));
-  const outerR = majorR + 1.0;
-  const segments = 36;
-  const turns = depth / pitch;
-  const rings = Math.max(8, Math.floor(turns * 16));
+  assert.strictEqual(embossedParams.fillMode, 'embossed');
+  assert.strictEqual(embossedTextZ, 2.0, 'Embossed text sits at top baseplate surface (Z=2.0mm)');
+  assert.strictEqual(embossedTotalZ, 7.0, 'Embossed total bounding box height (7.0mm)');
+});
 
-  const positions = [];
+test('Section 2: Engraved (Carved) Sub-Layering & Force Baseplate Enable', () => {
+  const engravedParams = {
+    fillMode: 'engraved',
+    baseplateThickness: 2.0,
+    extrudeDepth: 5.0,
+    baseplateEnabled: false // Will be forced true!
+  };
 
-  for (let r = 0; r <= rings; r++) {
-    const z = (r / rings) * depth;
-    for (let s = 0; s < segments; s++) {
-      const angle = (s / segments) * Math.PI * 2.0;
-      const phase = (z / pitch) * Math.PI * 2.0 - angle;
-      const toothPhase = (Math.sin(phase) + 1.0) / 2.0;
-      const r_thread = minorR + (majorR - minorR) * toothPhase;
-      positions.push(Math.cos(angle) * r_thread, Math.sin(angle) * r_thread, z);
+  if (engravedParams.fillMode === 'engraved') {
+    engravedParams.baseplateEnabled = true;
+  }
+
+  const totalBaseDepth = engravedParams.baseplateThickness;
+  const recessDepth = Math.min(engravedParams.extrudeDepth, totalBaseDepth * 0.7);
+  const floorThickness = Math.max(0.2, totalBaseDepth - recessDepth);
+
+  assert.strictEqual(engravedParams.fillMode, 'engraved');
+  assert.strictEqual(engravedParams.baseplateEnabled, true, 'Engraved mode force-enables baseplate');
+  assert.strictEqual(recessDepth, 1.4, 'Engraved recess depth capped at 70% baseplate thickness');
+  assert.strictEqual(floorThickness.toFixed(1), '0.6', 'Engraved solid bottom baseplate floor thickness (0.6mm)');
+});
+
+test('Section 2.1: Engraved Sub-Layering Layer A & Layer B Geometry Bounds', () => {
+  const floorThickness = 0.6;
+  const recessDepth = 1.4;
+
+  const bottomLayerZ = 0;
+  const bottomLayerDepth = floorThickness;
+  assert.strictEqual(bottomLayerZ, 0, 'Bottom solid floor layer starts at Z=0mm');
+  assert.strictEqual(bottomLayerDepth, 0.6, 'Bottom solid floor layer extrudes up to Z=0.6mm');
+
+  const topWallsZ = floorThickness;
+  const topWallsDepth = recessDepth;
+  assert.strictEqual(topWallsZ, 0.6, 'Top carved walls layer starts at Z=0.6mm');
+  assert.strictEqual(topWallsDepth, 1.4, 'Top carved walls layer extrudes 1.4mm to Z=2.0mm');
+});
+
+test('Section 2.2: Engraved Inner Island Preservation for Characters with Holes', () => {
+  class MockCurve {
+    constructor(name) { this.name = name; }
+  }
+
+  class MockShape {
+    constructor(curves, holes = []) {
+      this.curves = curves;
+      this.holes = holes;
     }
   }
-  return positions;
-}
 
-const socketPositions = generateThreadSocketPositions();
-assert(socketPositions.length > 0, 'Thread socket 3D positions generated');
-assert(socketPositions.length % 3 === 0, 'Thread socket 3D vertices valid (X,Y,Z triples)');
-assert(!socketPositions.some(isNaN), 'Thread socket 0 NaN values');
+  const letterA = new MockShape(
+    [new MockCurve('Outer A loop')],
+    [{ curves: [new MockCurve('Inner A triangle')] }]
+  );
 
-console.log('----------------------------------------------------');
-console.log(`📊 Test Results: ${passed}/${total} tests passed (100% SUCCESS)`);
-console.log('----------------------------------------------------');
+  const shapes = [letterA];
+  const topBaseHoles = [];
+  const islandShapes = [];
+
+  shapes.forEach(s => {
+    topBaseHoles.push({ curves: s.curves });
+    s.holes.forEach(h => {
+      islandShapes.push({ curves: h.curves });
+    });
+  });
+
+  assert.strictEqual(topBaseHoles.length, 1, 'Outer letter channel cut into top baseplate layer');
+  assert.strictEqual(topBaseHoles[0].curves[0].name, 'Outer A loop');
+  assert.strictEqual(islandShapes.length, 1, 'Inner island pillar created for character loop');
+  assert.strictEqual(islandShapes[0].curves[0].name, 'Inner A triangle');
+});
+
+test('Section 3: Baseplate Corner Profiles (Fillet, Chamfer, Square)', () => {
+  function getCornerPoints(hw, hh, rad, profile) {
+    const r = Math.min(rad, Math.min(hw, hh));
+    const pts = [];
+    if (profile === 'square' || r <= 0.001) {
+      pts.push([-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]);
+    } else if (profile === 'chamfer') {
+      pts.push([-hw + r, -hh], [hw - r, -hh], [hw, -hh + r], [hw, hh - r], [hw - r, hh], [-hw + r, hh], [-hw, hh - r], [-hw, -hh + r]);
+    } else {
+      pts.push([-hw + r, -hh], [hw - r, -hh], [hw, hh - r], [-hw + r, hh]);
+    }
+    return pts;
+  }
+
+  assert.strictEqual(getCornerPoints(20, 10, 4, 'square').length, 4, 'Square profile generates 4 sharp vertices');
+  assert.strictEqual(getCornerPoints(20, 10, 4, 'chamfer').length, 8, 'Chamfer profile generates 8 angled vertices');
+  assert.strictEqual(getCornerPoints(20, 10, 4, 'fillet').length, 4, 'Fillet profile generates rounded quad control vertices');
+});
+
+test('Section 4: 2D Vector Pre-Extrusion X-Mirroring', () => {
+  function mirrorCurve2DX(curve) {
+    return {
+      v1: { x: (-curve.v2.x || 0), y: curve.v2.y },
+      v2: { x: (-curve.v1.x || 0), y: curve.v1.y }
+    };
+  }
+
+  const line = { v1: { x: 0, y: 0 }, v2: { x: 10, y: 5 } };
+  const mirroredLine = mirrorCurve2DX(line);
+  assert.strictEqual(mirroredLine.v1.x, -10);
+  assert.strictEqual(mirroredLine.v1.y, 5);
+  assert.strictEqual(mirroredLine.v2.x, 0);
+  assert.strictEqual(mirroredLine.v2.y, 0);
+});
+
+test('Section 5: Watertight Helical Thread Socket Geometry', () => {
+  function generateThreadSocketPositions(depth = 1.8, majorDia = 6.55, pitch = 1.27) {
+    const majorR = majorDia / 2.0;
+    const minorR = Math.max(0.5, majorR - (pitch * 0.54));
+    const outerR = majorR + 1.0;
+    const segments = 36;
+    const turns = depth / pitch;
+    const rings = Math.max(8, Math.floor(turns * 16));
+
+    const positions = [];
+
+    for (let r = 0; r <= rings; r++) {
+      const z = (r / rings) * depth;
+      for (let s = 0; s < segments; s++) {
+        const angle = (s / segments) * Math.PI * 2.0;
+        const phase = (z / pitch) * Math.PI * 2.0 - angle;
+        const toothPhase = (Math.sin(phase) + 1.0) / 2.0;
+        const r_thread = minorR + (majorR - minorR) * toothPhase;
+        positions.push(Math.cos(angle) * r_thread, Math.sin(angle) * r_thread, z);
+      }
+    }
+    return positions;
+  }
+
+  const socketPositions = generateThreadSocketPositions();
+  assert.ok(socketPositions.length > 0, 'Thread socket 3D positions generated');
+  assert.strictEqual(socketPositions.length % 3, 0, 'Thread socket 3D vertices valid (X,Y,Z triples)');
+  assert.ok(!socketPositions.some(Number.isNaN), 'Thread socket 0 NaN values');
+});

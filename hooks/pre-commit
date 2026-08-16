@@ -1,0 +1,18 @@
+#!/bin/sh
+# Git pre-commit hook for 3D Text STL Studio
+# Automatically runs standard npm linting and node:test before every commit.
+
+echo "===================================================="
+echo "⚓ Running Standard npm Pre-Commit CI Checks..."
+echo "===================================================="
+
+npm run check
+RESULT=$?
+
+if [ $RESULT -ne 0 ]; then
+    echo "❌ Pre-commit CI checks failed. Commit aborted."
+    exit 1
+fi
+
+echo "✅ All Pre-Commit CI Checks Passed!"
+exit 0

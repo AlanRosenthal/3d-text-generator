@@ -12,7 +12,7 @@
   <div class="app-container">
     <!-- Navigation Header -->
     <header class="app-header">
-      <div class="header-brand">
+      <div class="header-brand" id="brand-home-link" style="cursor: pointer;" title="Return to main page">
         <span class="brand-icon">📦</span>
         <div>
           <h1 class="brand-title">3D Text STL Studio</h1>
@@ -71,29 +71,38 @@
           
           <!-- Card 1: Font Source -->
           <div class="studio-card">
-            <div class="card-header">
-              <span class="card-num">1</span>
-              <h3>Font Source</h3>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div class="card-header-title" style="display: flex; align-items: center; gap: 10px;">
+                <span class="card-num">1</span>
+                <h3>Font Source</h3>
+              </div>
+              <button class="btn btn-ghost" id="btn-reset-card-1" style="padding: 2px 10px; font-size: 11px; font-weight: 600; height: 26px; color: var(--accent-color, #818cf8);">Reset</button>
             </div>
             <div class="card-body">
-              <!-- 1. Fonts Dropdown -->
+              <!-- 1. Fonts Dropdown (Includes Standard Fonts, daFont, and Custom Upload) -->
               <div class="field-group">
-                <label for="select-google-font">Fonts</label>
+                <label for="select-google-font">Font Source</label>
                 <select id="select-google-font" class="studio-select">
-                  <option value="arial" selected>Arial</option>
-                  <option value="impact">Impact</option>
-                  <option value="black">Arial Black</option>
-                  <option value="verdana">Verdana</option>
-                  <option value="trebuchet">Trebuchet MS</option>
-                  <option value="georgia">Georgia</option>
-                  <option value="courier">Courier New</option>
-                  <option value="comic">Comic Sans MS</option>
-                  <option value="andale">Andale Mono</option>
+                  <optgroup label="Standard Fonts">
+                    <option value="arial" selected>Arial</option>
+                    <option value="impact">Impact</option>
+                    <option value="black">Arial Black</option>
+                    <option value="verdana">Verdana</option>
+                    <option value="trebuchet">Trebuchet MS</option>
+                    <option value="georgia">Georgia</option>
+                    <option value="courier">Courier New</option>
+                    <option value="comic">Comic Sans MS</option>
+                    <option value="andale">Andale Mono</option>
+                  </optgroup>
+                  <optgroup label="Custom Font Options">
+                    <option value="dafont">Custom Font from daFont.com</option>
+                    <option value="upload">Upload Custom Font...</option>
+                  </optgroup>
                 </select>
               </div>
 
-              <!-- 2. daFont Link / Name Importer -->
-              <div class="field-group" style="margin-top: 12px;">
+              <!-- 2. daFont Link / Name Importer (Visible when Custom Font from daFont.com is selected) -->
+              <div class="field-group" id="dafont-import-container" style="margin-top: 12px; display: none;">
                 <label for="dafont-url-input">daFont Link or Font Name</label>
                 <div class="url-import-row">
                   <input type="url" id="dafont-url-input" class="studio-input" placeholder="Paste daFont link or name (e.g. Midstar)..." />
@@ -101,30 +110,18 @@
                 </div>
               </div>
 
-              <!-- 3. Upload Custom Font Button -->
-              <div class="field-group" style="margin-top: 12px;">
-                <label>Upload Custom Font</label>
-                <button class="btn btn-outline" id="btn-upload-font" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                  <span>📁 Upload</span>
-                </button>
-                <input type="file" id="font-file-input" accept=".ttf,.otf" hidden />
-              </div>
-
-              <!-- 4. Active Font Display & Reset Button Side-by-Side -->
-              <div class="active-font-row" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; padding: 10px 12px; background: rgba(30, 41, 59, 0.6); border-radius: 8px; border: 1px solid var(--border-color, #334155);">
-                <div id="drop-sub" style="font-size: 14px; font-weight: 600; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Active Font: Arial Bold</div>
-                <button class="btn btn-ghost" id="btn-reset-default-font" style="padding: 4px 12px; font-size: 12px; font-weight: 600; height: 32px; flex-shrink: 0; color: var(--accent-color, #818cf8);">
-                  <span>Reset</span>
-                </button>
-              </div>
+              <input type="file" id="font-file-input" accept=".ttf,.otf" hidden />
             </div>
           </div>
 
           <!-- Card 2: Custom Text & Fill Style -->
           <div class="studio-card">
-            <div class="card-header">
-              <span class="card-num">2</span>
-              <h3>Text & Fill Style</h3>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div class="card-header-title" style="display: flex; align-items: center; gap: 10px;">
+                <span class="card-num">2</span>
+                <h3>Text & Fill Style</h3>
+              </div>
+              <button class="btn btn-ghost" id="btn-reset-card-2" style="padding: 2px 10px; font-size: 11px; font-weight: 600; height: 26px; color: var(--accent-color, #818cf8);">Reset</button>
             </div>
             <div class="card-body">
               <div class="field-group">
@@ -170,9 +167,12 @@
 
           <!-- Card 3: Dimensions -->
           <div class="studio-card">
-            <div class="card-header">
-              <span class="card-num">3</span>
-              <h3>Dimensions & Scale</h3>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div class="card-header-title" style="display: flex; align-items: center; gap: 10px;">
+                <span class="card-num">3</span>
+                <h3>Dimensions & Scale</h3>
+              </div>
+              <button class="btn btn-ghost" id="btn-reset-card-3" style="padding: 2px 10px; font-size: 11px; font-weight: 600; height: 26px; color: var(--accent-color, #818cf8);">Reset</button>
             </div>
             <div class="card-body">
               <div class="slider-group">
@@ -195,15 +195,18 @@
 
           <!-- Card 4: Baseplate -->
           <div class="studio-card">
-            <div class="card-header">
-              <div class="card-header-title">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div class="card-header-title" style="display: flex; align-items: center; gap: 10px;">
                 <span class="card-num">4</span>
                 <h3>Baseplate</h3>
               </div>
-              <label class="toggle-switch">
-                <input type="checkbox" id="check-baseplate" checked />
-                <span class="toggle-slider"></span>
-              </label>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <button class="btn btn-ghost" id="btn-reset-card-4" style="padding: 2px 10px; font-size: 11px; font-weight: 600; height: 26px; color: var(--accent-color, #818cf8);">Reset</button>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="check-baseplate" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
             </div>
             <div class="card-body" id="baseplate-controls-body">
               <div class="field-group">
@@ -243,15 +246,18 @@
 
           <!-- Card 5: Tapped Screw Mount Hole (Back Side) -->
           <div class="studio-card">
-            <div class="card-header">
-              <div class="card-header-title">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div class="card-header-title" style="display: flex; align-items: center; gap: 10px;">
                 <span class="card-num">5</span>
-                <h3>Tapped Screw Hole (Back Side)</h3>
+                <h3>Tapped Screw Hole</h3>
               </div>
-              <label class="toggle-switch">
-                <input type="checkbox" id="check-mounthole" />
-                <span class="toggle-slider"></span>
-              </label>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <button class="btn btn-ghost" id="btn-reset-card-5" style="padding: 2px 10px; font-size: 11px; font-weight: 600; height: 26px; color: var(--accent-color, #818cf8);">Reset</button>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="check-mounthole" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
             </div>
             <div class="card-body" id="mounthole-controls-body" style="display: none;">
               <!-- Standard Thread Option -->
@@ -290,9 +296,12 @@
 
           <!-- Card 6: Colors & Preview Material -->
           <div class="studio-card">
-            <div class="card-header">
-              <span class="card-num">6</span>
-              <h3>Preview Colors</h3>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div class="card-header-title" style="display: flex; align-items: center; gap: 10px;">
+                <span class="card-num">6</span>
+                <h3>Preview Colors</h3>
+              </div>
+              <button class="btn btn-ghost" id="btn-reset-card-6" style="padding: 2px 10px; font-size: 11px; font-weight: 600; height: 26px; color: var(--accent-color, #818cf8);">Reset</button>
             </div>
             <div class="card-body">
               <div class="color-pickers-row" style="display: flex; gap: 12px;">

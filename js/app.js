@@ -13,6 +13,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
   let gridHelper, ambientLight, dirLight1, dirLight2;
   let parsedFont = null;
   let fontName = 'Arial';
+  let currentFontKey = 'arial';
   let isGridVisible = true;
   let isLightingMode = true;
 
@@ -30,6 +31,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
   // 3D Parameters
   const params = {
     text: 'Your Text Here',
+    font: 'arial',
     extrudeDepth: 5.0,
     fontSize: 25.0,
     letterSpacing: 0.0,
@@ -57,13 +59,30 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
     // Check if URL contains shareable settings
     const hasSharedParams = loadParamsFromURL();
+    let fontToLoad = 'arial';
+
     if (hasSharedParams) {
       syncUIFromParams();
       setStatus('Shared config loaded');
+      if (params.font) fontToLoad = params.font;
     }
 
-    // Load default font from RAM
-    loadEmbeddedFont('arial');
+    // Load initial font (Embedded RAM Font vs daFont URL/slug)
+    const embeddedKeys = new Set(['arial', 'impact', 'black', 'verdana', 'trebuchet', 'georgia', 'courier', 'comic', 'andale']);
+    const fontStr = fontToLoad.toLowerCase().trim();
+    const isEmbedded = embeddedKeys.has(fontStr) || (embeddedKeys.has(resolveFontKey(fontToLoad)) && resolveFontKey(fontToLoad) !== 'arial');
+
+    if (isEmbedded) {
+      loadEmbeddedFont(fontToLoad);
+    } else {
+      importFromDafontURL(fontToLoad);
+    }
+
+    // Force viewport layout resize sync pass after initial DOM paint
+    setTimeout(() => {
+      onWindowResize();
+      update3DMesh();
+    }, 150);
   });
 
   function updateFontStatusText(name) {
@@ -73,39 +92,70 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     if (elPri) elPri.textContent = name;
   }
 
-  // Load font directly from RAM
+  // Resolve font key aliases directly to RAM embedded font keys
+  function resolveFontKey(fontStr) {
+    if (!fontStr) return 'arial';
+    const s = fontStr.toLowerCase().trim();
+
+    const mapping = {
+      'arial': 'arial',
+      'arial bold': 'arial',
+      'impact': 'impact',
+      'impact bold': 'impact',
+      'black': 'black',
+      'arial black': 'black',
+      'verdana': 'verdana',
+      'verdana bold': 'verdana',
+      'trebuchet': 'trebuchet',
+      'trebuchet ms': 'trebuchet',
+      'georgia': 'georgia',
+      'georgia bold': 'georgia',
+      'courier': 'courier',
+      'courier new': 'courier',
+      'comic': 'comic',
+      'comic sans': 'comic',
+      'comic sans ms': 'comic',
+      'andale': 'andale',
+      'andale mono': 'andale',
+      'roboto': 'arial',
+      'open-sans': 'verdana',
+      'montserrat': 'black',
+      'oswald': 'impact',
+      'lato': 'trebuchet',
+      'merriweather': 'georgia',
+      'raleway': 'comic',
+      'ptsans': 'courier',
+      'arimo': 'andale'
+    };
+
+    if (mapping[s]) return mapping[s];
+    for (const k in mapping) {
+      if (s.includes(k) || k.includes(s)) return mapping[k];
+    }
+    return 'arial';
+  }
+
+  // Load font directly from RAM payload (100% Zero-Fetch Guaranteed!)
   function loadEmbeddedFont(fontKey = 'arial') {
-    const key = fontKey || 'arial';
+    const key = resolveFontKey(fontKey);
+
     if (window.EMBEDDED_FONTS && window.EMBEDDED_FONTS[key]) {
       try {
         const item = window.EMBEDDED_FONTS[key];
         const binaryString = atob(item.b64);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
+        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
         parsedFont = opentype.parse(bytes.buffer);
         fontName = item.name;
+        currentFontKey = key;
+        params.font = key;
+
+        const selectGoogleFont = document.getElementById('select-google-font');
+        if (selectGoogleFont) selectGoogleFont.value = key;
+
         updateFontStatusText(item.name);
         setStatus(`Loaded: ${item.name}`);
-        update3DMesh();
-        return true;
-      } catch (err) {
-        console.error('Embedded font parse error:', err);
-      }
-    } else if (window.DEFAULT_FONT_BASE64) {
-      try {
-        const binaryString = atob(window.DEFAULT_FONT_BASE64);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        parsedFont = opentype.parse(bytes.buffer);
-        fontName = 'Arial';
-        updateFontStatusText('Arial');
-        setStatus('Font ready');
         update3DMesh();
         return true;
       } catch (err) {
@@ -190,20 +240,40 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
   function setupControlListeners() {
     const fileInput = document.getElementById('font-file-input');
 
+    // Header Title Home Link (Clears shared URL parameters & returns to main page)
+    const brandHomeLink = document.getElementById('brand-home-link');
+    if (brandHomeLink) {
+      brandHomeLink.addEventListener('click', () => {
+        window.location.href = window.location.origin + window.location.pathname;
+      });
+    }
+
     // Fonts Dropdown
     const selectGoogleFont = document.getElementById('select-google-font');
+    const dafontContainer = document.getElementById('dafont-import-container');
+    const dafontUrlInput = document.getElementById('dafont-url-input');
+
     if (selectGoogleFont) {
       selectGoogleFont.addEventListener('change', (e) => {
-        const fontKey = e.target.value;
-        if (fontKey) {
-          loadEmbeddedFont(fontKey);
+        const val = e.target.value;
+        if (val === 'dafont') {
+          if (dafontContainer) dafontContainer.style.display = 'block';
+          if (dafontUrlInput) dafontUrlInput.focus();
+        } else if (val === 'upload') {
+          if (dafontContainer) dafontContainer.style.display = 'none';
+          if (fileInput) fileInput.click();
+        } else {
+          if (dafontContainer) dafontContainer.style.display = 'none';
+          params.font = val;
+          currentFontKey = val;
+          loadEmbeddedFont(val);
         }
       });
     }
 
     // daFont Custom URL / Name Importer
     const btnImportUrl = document.getElementById('btn-import-url');
-    const dafontUrlInput = document.getElementById('dafont-url-input');
+    let dafontDebounceTimer = null;
 
     const triggerImport = () => {
       const urlInput = dafontUrlInput ? dafontUrlInput.value.trim() : '';
@@ -222,6 +292,15 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
           triggerImport();
         }
       });
+      dafontUrlInput.addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        if (dafontDebounceTimer) clearTimeout(dafontDebounceTimer);
+        if (val.length >= 3) {
+          dafontDebounceTimer = setTimeout(() => {
+            importFromDafontURL(val);
+          }, 600);
+        }
+      });
     }
 
     // Upload Custom Font Button
@@ -230,15 +309,129 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       btnUploadFont.addEventListener('click', () => fileInput.click());
     }
 
-    // Clear / Reset to Default Font Button
-    const btnResetFont = document.getElementById('btn-reset-default-font');
-    if (btnResetFont) {
-      btnResetFont.addEventListener('click', () => {
+    // --- PER-SECTION RESET BUTTON HANDLERS ---
+    const btnResetCard1 = document.getElementById('btn-reset-card-1');
+    if (btnResetCard1) {
+      btnResetCard1.addEventListener('click', () => {
         if (selectGoogleFont) selectGoogleFont.value = 'arial';
         if (dafontUrlInput) dafontUrlInput.value = '';
+        if (dafontContainer) dafontContainer.style.display = 'none';
         if (fileInput) fileInput.value = '';
         loadEmbeddedFont('arial');
-        setStatus('Reset to default font');
+      });
+    }
+
+    const btnResetCard2 = document.getElementById('btn-reset-card-2');
+    if (btnResetCard2) {
+      btnResetCard2.addEventListener('click', () => {
+        params.text = DEFAULT_PARAMS.text;
+        params.fillMode = DEFAULT_PARAMS.fillMode;
+        params.letterSpacing = DEFAULT_PARAMS.letterSpacing;
+        params.textThickness = DEFAULT_PARAMS.textThickness;
+        params.mirrorText = DEFAULT_PARAMS.mirrorText;
+
+        const inputCustomText = document.getElementById('input-custom-text');
+        if (inputCustomText) inputCustomText.value = params.text;
+
+        const segBtns = document.querySelectorAll('.seg-btn');
+        segBtns.forEach(btn => {
+          if (btn.getAttribute('data-mode') === params.fillMode) btn.classList.add('active');
+          else btn.classList.remove('active');
+        });
+
+        bindSliderValue('range-letter-spacing', params.letterSpacing, 'val-letter-spacing', 'mm');
+        bindSliderValue('range-text-thickness', params.textThickness, 'val-text-thickness', 'mm');
+
+        const checkMirrorText = document.getElementById('check-mirror-text');
+        if (checkMirrorText) checkMirrorText.checked = params.mirrorText;
+
+        const checkBaseplate = document.getElementById('check-baseplate');
+        if (checkBaseplate) checkBaseplate.disabled = false;
+
+        update3DMesh();
+      });
+    }
+
+    const btnResetCard3 = document.getElementById('btn-reset-card-3');
+    if (btnResetCard3) {
+      btnResetCard3.addEventListener('click', () => {
+        params.extrudeDepth = DEFAULT_PARAMS.extrudeDepth;
+        params.fontSize = DEFAULT_PARAMS.fontSize;
+        bindSliderValue('range-extrude-depth', params.extrudeDepth, 'val-extrude-depth', 'mm');
+        bindSliderValue('range-font-size', params.fontSize, 'val-font-size', 'mm');
+        update3DMesh();
+      });
+    }
+
+    const btnResetCard4 = document.getElementById('btn-reset-card-4');
+    if (btnResetCard4) {
+      btnResetCard4.addEventListener('click', () => {
+        params.baseplateEnabled = DEFAULT_PARAMS.baseplateEnabled;
+        params.baseplateProfile = DEFAULT_PARAMS.baseplateProfile;
+        params.baseplateThickness = DEFAULT_PARAMS.baseplateThickness;
+        params.baseplatePadding = DEFAULT_PARAMS.baseplatePadding;
+        params.baseplateRadius = DEFAULT_PARAMS.baseplateRadius;
+
+        const checkBaseplate = document.getElementById('check-baseplate');
+        if (checkBaseplate) {
+          checkBaseplate.checked = params.baseplateEnabled;
+          checkBaseplate.disabled = (params.fillMode === 'engraved');
+        }
+        const selectBaseProfile = document.getElementById('select-baseplate-profile');
+        if (selectBaseProfile) selectBaseProfile.value = params.baseplateProfile;
+
+        bindSliderValue('range-base-thick', params.baseplateThickness, 'val-base-thick', 'mm');
+        bindSliderValue('range-base-pad', params.baseplatePadding, 'val-base-pad', 'mm');
+        bindSliderValue('range-base-radius', params.baseplateRadius, 'val-base-radius', 'mm');
+        document.getElementById('baseplate-controls-body').style.display = params.baseplateEnabled ? 'flex' : 'none';
+
+        update3DMesh();
+      });
+    }
+
+    const btnResetCard5 = document.getElementById('btn-reset-card-5');
+    if (btnResetCard5) {
+      btnResetCard5.addEventListener('click', () => {
+        params.mountHoleEnabled = DEFAULT_PARAMS.mountHoleEnabled;
+        params.threadStandard = DEFAULT_PARAMS.threadStandard;
+        params.mountHoleOffset = DEFAULT_PARAMS.mountHoleOffset;
+        params.mountHoleDepthRatio = DEFAULT_PARAMS.mountHoleDepthRatio;
+
+        const checkMounthole = document.getElementById('check-mounthole');
+        if (checkMounthole) checkMounthole.checked = params.mountHoleEnabled;
+
+        const selectThread = document.getElementById('select-thread-standard');
+        if (selectThread) selectThread.value = params.threadStandard;
+
+        bindSliderValue('range-mounthole-offset', params.mountHoleOffset, 'val-mounthole-offset', 'mm', true);
+
+        const rangeDepthRatio = document.getElementById('range-mounthole-depth-ratio');
+        if (rangeDepthRatio) {
+          rangeDepthRatio.value = 90;
+          const badge = document.getElementById('val-mounthole-depth-ratio');
+          if (badge) badge.textContent = '90% (Blind Hole)';
+        }
+
+        document.getElementById('mounthole-controls-body').style.display = params.mountHoleEnabled ? 'flex' : 'none';
+        update3DMesh();
+      });
+    }
+
+    const btnResetCard6 = document.getElementById('btn-reset-card-6');
+    if (btnResetCard6) {
+      btnResetCard6.addEventListener('click', () => {
+        params.textColor = DEFAULT_PARAMS.textColor;
+        params.baseColor = DEFAULT_PARAMS.baseColor;
+        params.threadColor = DEFAULT_PARAMS.threadColor;
+
+        const colorText = document.getElementById('color-text');
+        if (colorText) colorText.value = params.textColor;
+        const colorBase = document.getElementById('color-base');
+        if (colorBase) colorBase.value = params.baseColor;
+        const colorThread = document.getElementById('color-thread');
+        if (colorThread) colorThread.value = params.threadColor;
+
+        update3DMesh();
       });
     }
 
@@ -519,7 +712,8 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
     showLoader(`Fetching ${displayName}...`);
 
-    const cleanWorker = window.CUSTOM_PROXY_URL.trim().replace(/\/+$/, '');
+    try {
+      const cleanWorker = window.CUSTOM_PROXY_URL.trim().replace(/\/+$/, '');
     const candidates = [
       `${cleanWorker}?f=${encodeURIComponent(slug.replace(/-/g, '_'))}`,
       `${cleanWorker}?f=${encodeURIComponent(slug)}`,
@@ -580,6 +774,17 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       }
 
       fontName = displayName;
+      currentFontKey = slug;
+      params.font = slug;
+
+      const selectGoogleFont = document.getElementById('select-google-font');
+      const dafontContainer = document.getElementById('dafont-import-container');
+      const dafontUrlInput = document.getElementById('dafont-url-input');
+
+      if (selectGoogleFont) selectGoogleFont.value = 'dafont';
+      if (dafontContainer) dafontContainer.style.display = 'block';
+      if (dafontUrlInput) dafontUrlInput.value = userInput;
+
       updateFontStatusText(`daFont: ${displayName}`);
       hideLoader();
       setStatus(`Imported: ${displayName}`);
@@ -1065,20 +1270,65 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     return inside;
   }
 
+  // Bolden 2D vector curve contour by offsetting vertices along local normals
+  function offsetPathCurves(curves, offset) {
+    if (!offset || !curves || curves.length === 0) return curves;
+
+    const tempPath = new THREE.Path();
+    tempPath.curves = curves;
+    const pts = tempPath.getPoints(Math.max(12, curves.length * 4));
+    if (!pts || pts.length < 3) return curves;
+
+    if (pts[0].distanceTo(pts[pts.length - 1]) < 1e-4) pts.pop();
+    const n = pts.length;
+    if (n < 3) return curves;
+
+    const isClockwise = THREE.ShapeUtils.area(pts) < 0;
+    const sign = isClockwise ? -1 : 1;
+
+    const newPts = [];
+    for (let i = 0; i < n; i++) {
+      const prev = pts[(i - 1 + n) % n];
+      const curr = pts[i];
+      const next = pts[(i + 1) % n];
+
+      const e1x = curr.x - prev.x, e1y = curr.y - prev.y;
+      const len1 = Math.hypot(e1x, e1y) || 1;
+      const n1x = (e1y / len1) * sign, n1y = (-e1x / len1) * sign;
+
+      const e2x = next.x - curr.x, e2y = next.y - curr.y;
+      const len2 = Math.hypot(e2x, e2y) || 1;
+      const n2x = (e2y / len2) * sign, n2y = (-e2x / len2) * sign;
+
+      let nx = n1x + n2x, ny = n1y + n2y;
+      const norm = Math.hypot(nx, ny) || 1;
+      nx /= norm;
+      ny /= norm;
+
+      newPts.push(new THREE.Vector2(curr.x + nx * offset, curr.y + ny * offset));
+    }
+    newPts.push(newPts[0].clone());
+
+    const newCurves = [];
+    for (let j = 0; j < newPts.length - 1; j++) {
+      newCurves.push(new THREE.LineCurve(newPts[j], newPts[j + 1]));
+    }
+    return newCurves;
+  }
+
   // Convert opentype path to array of Three.js Shapes using Pure 2D Point-in-Polygon Containment
   function opentypeToThreeShapes(font, text, size, letterSpacing = 0, textThickness = 0) {
     const shapes = [];
-    const effectiveSize = Math.max(2, size + (textThickness * 2));
-    const fontScale = (1 / (font.unitsPerEm || 1000)) * effectiveSize;
+    const fontScale = (1 / (font.unitsPerEm || 1000)) * size;
 
     let currentX = 0;
 
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       const glyph = font.charToGlyph(char);
-      const advanceWidth = (glyph.advanceWidth ? glyph.advanceWidth * fontScale : effectiveSize * 0.6) + letterSpacing;
+      const advanceWidth = (glyph.advanceWidth ? glyph.advanceWidth * fontScale : size * 0.6) + letterSpacing;
 
-      const path = glyph.getPath(currentX, 0, effectiveSize);
+      const path = glyph.getPath(currentX, 0, size);
       const shapePath = new THREE.ShapePath();
 
       path.commands.forEach(cmd => {
@@ -1137,11 +1387,11 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
             if (parent) {
               const holePath = new THREE.Path();
-              holePath.curves = pInfo.subPath.curves;
+              holePath.curves = textThickness !== 0 ? offsetPathCurves(pInfo.subPath.curves, -textThickness) : pInfo.subPath.curves;
               parent.shape.holes.push(holePath);
             } else {
               const shape = new THREE.Shape();
-              shape.curves = pInfo.subPath.curves;
+              shape.curves = textThickness !== 0 ? offsetPathCurves(pInfo.subPath.curves, textThickness) : pInfo.subPath.curves;
               charRootShapes.push({
                 shape: shape,
                 points: pInfo.points
@@ -1183,39 +1433,69 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     if (elTris) elTris.textContent = triangles.toLocaleString();
   }
 
-  // Human-Readable Shareable Link Generator
+  // Default Parameter Baseline Constants
+  const DEFAULT_PARAMS = {
+    text: 'Your Text Here',
+    font: 'arial',
+    extrudeDepth: 5.0,
+    fontSize: 25.0,
+    letterSpacing: 0.0,
+    textThickness: 0.0,
+    fillMode: 'embossed',
+    mirrorText: false,
+    baseplateEnabled: true,
+    baseplateProfile: 'fillet',
+    baseplateThickness: 2.0,
+    baseplatePadding: 4.0,
+    baseplateRadius: 4.0,
+    mountHoleEnabled: false,
+    threadStandard: '1/4-20',
+    mountHoleOffset: 0.20,
+    mountHoleDepthRatio: 0.90,
+    textColor: '#818cf8',
+    baseColor: '#475569',
+    threadColor: '#f59e0b'
+  };
+
+  // Human-Readable Minimal Shareable Link Generator (Only non-default fields included!)
   function generateShareableURL() {
+    const activeFont = params.font || currentFontKey || 'arial';
     const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set('text', params.text);
-    url.searchParams.set('font', fontName);
-    url.searchParams.set('style', params.fillMode);
-    url.searchParams.set('extrudeDepth', params.extrudeDepth);
-    url.searchParams.set('fontHeight', params.fontSize);
-    url.searchParams.set('letterSpacing', params.letterSpacing);
-    url.searchParams.set('textThickness', params.textThickness);
-    url.searchParams.set('mirrorText', params.mirrorText ? 'true' : 'false');
-    url.searchParams.set('baseplate', params.baseplateEnabled ? 'true' : 'false');
-    url.searchParams.set('baseProfile', params.baseplateProfile);
-    url.searchParams.set('baseThickness', params.baseplateThickness);
-    url.searchParams.set('basePadding', params.baseplatePadding);
-    url.searchParams.set('baseRadius', params.baseplateRadius);
-    url.searchParams.set('mountHole', params.mountHoleEnabled ? 'true' : 'false');
-    url.searchParams.set('threadStandard', params.threadStandard);
-    url.searchParams.set('tolerance', params.mountHoleOffset);
-    url.searchParams.set('holeDepthRatio', params.mountHoleDepthRatio);
-    url.searchParams.set('textColor', params.textColor);
-    url.searchParams.set('baseColor', params.baseColor);
-    url.searchParams.set('threadColor', params.threadColor);
+
+    if (params.text !== DEFAULT_PARAMS.text) url.searchParams.set('text', params.text);
+    if (activeFont.toLowerCase() !== DEFAULT_PARAMS.font) url.searchParams.set('font', activeFont);
+    if (params.fillMode !== DEFAULT_PARAMS.fillMode) url.searchParams.set('style', params.fillMode);
+    if (params.extrudeDepth !== DEFAULT_PARAMS.extrudeDepth) url.searchParams.set('extrudeDepth', params.extrudeDepth);
+    if (params.fontSize !== DEFAULT_PARAMS.fontSize) url.searchParams.set('fontHeight', params.fontSize);
+    if (params.letterSpacing !== DEFAULT_PARAMS.letterSpacing) url.searchParams.set('letterSpacing', params.letterSpacing);
+    if (params.textThickness !== DEFAULT_PARAMS.textThickness) url.searchParams.set('textThickness', params.textThickness);
+    if (params.mirrorText !== DEFAULT_PARAMS.mirrorText) url.searchParams.set('mirrorText', params.mirrorText ? 'true' : 'false');
+    if (params.baseplateEnabled !== DEFAULT_PARAMS.baseplateEnabled) url.searchParams.set('baseplate', params.baseplateEnabled ? 'true' : 'false');
+    if (params.baseplateProfile !== DEFAULT_PARAMS.baseplateProfile) url.searchParams.set('baseProfile', params.baseplateProfile);
+    if (params.baseplateThickness !== DEFAULT_PARAMS.baseplateThickness) url.searchParams.set('baseThickness', params.baseplateThickness);
+    if (params.baseplatePadding !== DEFAULT_PARAMS.baseplatePadding) url.searchParams.set('basePadding', params.baseplatePadding);
+    if (params.baseplateRadius !== DEFAULT_PARAMS.baseplateRadius) url.searchParams.set('baseRadius', params.baseplateRadius);
+    if (params.mountHoleEnabled !== DEFAULT_PARAMS.mountHoleEnabled) url.searchParams.set('mountHole', params.mountHoleEnabled ? 'true' : 'false');
+    if (params.threadStandard !== DEFAULT_PARAMS.threadStandard) url.searchParams.set('threadStandard', params.threadStandard);
+    if (params.mountHoleOffset !== DEFAULT_PARAMS.mountHoleOffset) url.searchParams.set('tolerance', params.mountHoleOffset);
+    if (params.mountHoleDepthRatio !== DEFAULT_PARAMS.mountHoleDepthRatio) url.searchParams.set('holeDepthRatio', params.mountHoleDepthRatio);
+    if (params.textColor.toLowerCase() !== DEFAULT_PARAMS.textColor.toLowerCase()) url.searchParams.set('textColor', params.textColor);
+    if (params.baseColor.toLowerCase() !== DEFAULT_PARAMS.baseColor.toLowerCase()) url.searchParams.set('baseColor', params.baseColor);
+    if (params.threadColor.toLowerCase() !== DEFAULT_PARAMS.threadColor.toLowerCase()) url.searchParams.set('threadColor', params.threadColor);
 
     return url.toString();
   }
 
-  // Parse Human-Readable Query Parameters on Startup
+  // Parse Query Parameters on Startup (Overrides default baseline)
   function loadParamsFromURL() {
     const searchParams = new URLSearchParams(window.location.search);
-    if (!searchParams.has('text') && !searchParams.has('style')) return false;
+    if (Array.from(searchParams.keys()).length === 0) return false;
+
+    // Reset to default baseline
+    Object.assign(params, DEFAULT_PARAMS);
 
     if (searchParams.has('text')) params.text = searchParams.get('text');
+    if (searchParams.has('font')) params.font = searchParams.get('font');
     if (searchParams.has('style')) params.fillMode = searchParams.get('style');
     if (searchParams.has('extrudeDepth')) params.extrudeDepth = parseFloat(searchParams.get('extrudeDepth'));
     if (searchParams.has('fontHeight')) params.fontSize = parseFloat(searchParams.get('fontHeight'));
@@ -1246,6 +1526,25 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     const inputCustomText = document.getElementById('input-custom-text');
     if (inputCustomText) inputCustomText.value = params.text;
 
+    const selectGoogleFont = document.getElementById('select-google-font');
+    const dafontContainer = document.getElementById('dafont-import-container');
+    const dafontUrlInput = document.getElementById('dafont-url-input');
+
+    if (params.font) {
+      const embeddedKeys = new Set(['arial', 'impact', 'black', 'verdana', 'trebuchet', 'georgia', 'courier', 'comic', 'andale']);
+      const fontStr = params.font.toLowerCase().trim();
+      const isEmbedded = embeddedKeys.has(fontStr) || (embeddedKeys.has(resolveFontKey(params.font)) && resolveFontKey(params.font) !== 'arial');
+
+      if (isEmbedded) {
+        if (selectGoogleFont) selectGoogleFont.value = resolveFontKey(params.font);
+        if (dafontContainer) dafontContainer.style.display = 'none';
+      } else {
+        if (selectGoogleFont) selectGoogleFont.value = 'dafont';
+        if (dafontContainer) dafontContainer.style.display = 'block';
+        if (dafontUrlInput) dafontUrlInput.value = params.font;
+      }
+    }
+
     const segBtns = document.querySelectorAll('.seg-btn');
     segBtns.forEach(btn => {
       const mode = btn.getAttribute('data-mode');
@@ -1267,6 +1566,14 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     bindSliderValue('range-base-pad', params.baseplatePadding, 'val-base-pad', 'mm');
     bindSliderValue('range-base-radius', params.baseplateRadius, 'val-base-radius', 'mm');
     bindSliderValue('range-mounthole-offset', params.mountHoleOffset, 'val-mounthole-offset', 'mm', true);
+
+    const rangeDepthRatio = document.getElementById('range-mounthole-depth-ratio');
+    if (rangeDepthRatio) {
+      const pct = Math.round(params.mountHoleDepthRatio * 100);
+      rangeDepthRatio.value = pct;
+      const badge = document.getElementById('val-mounthole-depth-ratio');
+      if (badge) badge.textContent = pct === 100 ? '100% (Through Hole)' : `${pct}% (Blind Hole)`;
+    }
 
     const checkBaseplate = document.getElementById('check-baseplate');
     if (checkBaseplate) {
@@ -1324,8 +1631,8 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     const blob = new Blob([result], { type: 'application/octet-stream' });
     const blobUrl = URL.createObjectURL(blob);
 
-    const safeFont = fontName.replace(/[^a-zA-Z0-9_\-]/g, '_');
-    const safeText = params.text.replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const safeFont = fontName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeText = params.text.replace(/[^a-zA-Z0-9_-]/g, '_');
     const modeTag = params.fillMode.toUpperCase();
     const mirrorTag = params.mirrorText ? '_MIRRORED' : '';
     const filename = `${safeFont}_3D_${safeText}_${modeTag}${mirrorTag}.stl`;
