@@ -28,7 +28,7 @@ jobs:
           node-version: '22'
 
       - name: Run Node.js Checks
-        run: node run check
+        run: npm run check
 
   deploy-github-pages:
     needs: static-analysis-and-test
