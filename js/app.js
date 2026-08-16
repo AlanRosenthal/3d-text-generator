@@ -67,15 +67,16 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       if (params.font) fontToLoad = params.font;
     }
 
-    // Load initial font (Embedded RAM Font vs daFont URL/slug)
-    const embeddedKeys = new Set(['arial', 'impact', 'black', 'verdana', 'trebuchet', 'georgia', 'courier', 'comic', 'andale']);
-    const fontStr = fontToLoad.toLowerCase().trim();
-    const isEmbedded = embeddedKeys.has(fontStr) || (embeddedKeys.has(resolveFontKey(fontToLoad)) && resolveFontKey(fontToLoad) !== 'arial');
-
-    if (isEmbedded) {
-      loadEmbeddedFont(fontToLoad);
+    // Load initial font (Embedded RAM Font vs daFont URL)
+    if (fontToLoad === 'dafont' || fontToLoad.includes('dafont.com')) {
+      const targetUrl = params.dafontUrl || (fontToLoad.includes('dafont.com') ? fontToLoad : '');
+      if (targetUrl && targetUrl.includes('dafont.com')) {
+        importFromDafontURL(targetUrl);
+      } else {
+        loadEmbeddedFont('arial');
+      }
     } else {
-      importFromDafontURL(fontToLoad);
+      loadEmbeddedFont(fontToLoad);
     }
 
     // Force viewport layout resize sync pass after initial DOM paint
@@ -278,7 +279,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     const triggerImport = () => {
       const urlInput = dafontUrlInput ? dafontUrlInput.value.trim() : '';
       if (!urlInput) {
-        alert('Please paste a daFont link, font name, or ZIP URL.');
+        alert('Please paste a valid daFont URL link (e.g. https://www.dafont.com/midstar.font).');
         return;
       }
       importFromDafontURL(urlInput);
@@ -693,19 +694,24 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     reader.readAsArrayBuffer(file);
   }
 
-  // Import font via Cloudflare Worker API exclusively (Requirement 18: 0 external fallbacks!)
+  // Import font via Cloudflare Worker API exclusively (Requires full daFont URL link!)
   async function importFromDafontURL(userInput) {
     const inputStr = userInput.trim();
     if (!inputStr) return;
 
+    // Strict validation: Require full dafont.com URL link
+    if (!inputStr.toLowerCase().includes('dafont.com')) {
+      alert('Please paste a valid daFont URL link (e.g. https://www.dafont.com/midstar.font).');
+      return;
+    }
+
     let slug = 'font';
-    if (inputStr.includes('dafont.com') || inputStr.includes('f=')) {
-      const match = inputStr.match(/f=([a-zA-Z0-9_-]+)/) || inputStr.match(/dafont\.com\/([a-zA-Z0-9_-]+)/);
-      if (match && match[1] && match[1] !== 'dl') {
-        slug = match[1].replace(/\.font$/i, '');
-      }
-    } else if (inputStr.match(/^[a-zA-Z0-9_-]+$/)) {
-      slug = inputStr;
+    const match = inputStr.match(/f=([a-zA-Z0-9_-]+)/) || inputStr.match(/dafont\.com\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1] && match[1] !== 'dl') {
+      slug = match[1].replace(/\.font$/i, '');
+    } else {
+      alert('Could not parse font name from daFont URL link.');
+      return;
     }
 
     const displayName = slug.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -774,8 +780,8 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       }
 
       fontName = displayName;
-      currentFontKey = slug;
-      params.font = slug;
+      currentFontKey = inputStr;
+      params.font = inputStr;
 
       const selectGoogleFont = document.getElementById('select-google-font');
       const dafontContainer = document.getElementById('dafont-import-container');
