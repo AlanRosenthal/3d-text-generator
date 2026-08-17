@@ -2,8 +2,8 @@
  * 3D Text STL Studio — Standard Node.js Test File (node:test & node:assert)
  */
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
 test('Ray-casting point inside/outside polygon containment math', () => {
   function pointInPolygon(point, vs) {

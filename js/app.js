@@ -2,6 +2,12 @@
  * 3D Text STL Studio — Core Application Logic for GitHub Pages
  */
 
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
+import opentype from 'opentype.js';
+import JSZip from 'jszip';
+
 // Cloudflare Worker API URL for zero-cors font package downloads
 window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev';
 
@@ -186,7 +192,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
 
-    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.maxPolarAngle = Math.PI / 2 + 0.1;
@@ -1638,12 +1644,12 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       return;
     }
 
-    if (!THREE.STLExporter) {
+    if (!STLExporter) {
       alert('STLExporter library not available.');
       return;
     }
 
-    const exporter = new THREE.STLExporter();
+    const exporter = new STLExporter();
     const result = exporter.parse(currentGroup, { binary: true });
 
     const blob = new Blob([result], { type: 'application/octet-stream' });

@@ -3,8 +3,8 @@
  * Standard Node.js Test Suite (node:test & node:assert/strict)
  */
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
 // Baseline Default Config Constants
 const DEFAULT_PARAMS = {

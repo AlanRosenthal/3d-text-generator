@@ -8,7 +8,7 @@ module.exports = [
     files: ["js/**/*.js", "lib/**/*.js", "tests/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
-      sourceType: "script",
+      sourceType: "module",
       globals: {
         ...globals.browser,
         ...globals.es2021,

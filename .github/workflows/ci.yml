@@ -26,12 +26,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          
+          cache: 'npm'
+
       - name: Install Dependencies
         run: npm ci
 
-      - name: Run Node.js Checks
+      - name: Run Lint & Test Suite
         run: npm run check
+
+      - name: Test Production Vite Build
+        run: npm run build
 
   deploy-github-pages:
     needs: static-analysis-and-test
@@ -44,13 +48,25 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Web Assets via Vite
+        run: npm run build
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload Static Web Assets Artifact
+      - name: Upload Production Web Assets Artifact (dist/)
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment

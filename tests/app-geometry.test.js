@@ -2,8 +2,8 @@
  * 3D Text STL Studio — De Facto Standard Node.js Test Suite (node:test & node:assert)
  */
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
 test('Section 1: Embossed (Raised) Mode Positioning & Heights', () => {
   const embossedParams = {
