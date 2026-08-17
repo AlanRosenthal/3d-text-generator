@@ -5,8 +5,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
-import opentype from 'opentype.js';
-import JSZip from 'jszip';
+import * as opentype from 'opentype.js';
 
 // Cloudflare Worker API URL for zero-cors font package downloads
 window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev';
@@ -34,29 +33,33 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     'custom': { name: 'Custom',      majorDia: 6.35, pitch: 1.27 }
   };
 
-  // 3D Parameters
-  const params = {
+  // Default Parameter Baseline Constants
+  const DEFAULT_PARAMS = {
     text: 'Your Text Here',
     font: 'arial',
+    dafontUrl: '',
     extrudeDepth: 5.0,
     fontSize: 25.0,
     letterSpacing: 0.0,
     textThickness: 0.0,
-    fillMode: 'embossed', // 'embossed', 'engraved'
+    fillMode: 'embossed',
     mirrorText: false,
     baseplateEnabled: true,
-    baseplateProfile: 'fillet', // 'fillet', 'chamfer', 'square'
+    baseplateProfile: 'fillet',
     baseplateThickness: 2.0,
     baseplatePadding: 4.0,
     baseplateRadius: 4.0,
     mountHoleEnabled: false,
     threadStandard: '1/4-20',
-    mountHoleOffset: 0.20,     // Tolerance compensation (+0.20mm to -0.50mm)
-    mountHoleDepthRatio: 0.90, // 90% Blind Hole by default
+    mountHoleOffset: 0.0,
+    mountHoleDepthRatio: 0.90,
     textColor: '#818cf8',
     baseColor: '#475569',
     threadColor: '#f59e0b'
   };
+
+  // 3D Parameters
+  const params = Object.assign({}, DEFAULT_PARAMS);
 
   document.addEventListener('DOMContentLoaded', () => {
     initThreeJS();
@@ -726,11 +729,17 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
     try {
       const cleanWorker = window.CUSTOM_PROXY_URL.trim().replace(/\/+$/, '');
-    const candidates = [
-      `${cleanWorker}?f=${encodeURIComponent(slug.replace(/-/g, '_'))}`,
-      `${cleanWorker}?f=${encodeURIComponent(slug)}`,
-      `${cleanWorker}?url=${encodeURIComponent(inputStr)}`
-    ];
+      const underscoreSlug = slug.replace(/-/g, '_');
+      const hyphenSlug = slug.replace(/_/g, '-');
+
+      const targetUrls = [
+        `https://dl.dafont.com/dl/?f=${encodeURIComponent(underscoreSlug)}`,
+        `https://dl.dafont.com/dl/?f=${encodeURIComponent(hyphenSlug)}`,
+        `https://www.dafont.com/${encodeURIComponent(hyphenSlug)}.font`,
+        inputStr
+      ];
+
+      const candidates = targetUrls.map(target => `${cleanWorker}?url=${encodeURIComponent(target)}`);
 
     let arrayBuffer = null;
     let lastError = null;
@@ -766,7 +775,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       if (isFont) {
         parsedFont = opentype.parse(arrayBuffer);
       } else {
-        const zip = await JSZip.loadAsync(arrayBuffer);
+        const zip = await window.JSZip.loadAsync(arrayBuffer);
         let fontZipFile = null;
 
         for (const filename of Object.keys(zip.files)) {
@@ -1445,31 +1454,6 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     const elTris = document.getElementById('stat-tris');
     if (elTris) elTris.textContent = triangles.toLocaleString();
   }
-
-  // Default Parameter Baseline Constants
-  const DEFAULT_PARAMS = {
-    text: 'Your Text Here',
-    font: 'arial',
-    dafontUrl: '',
-    extrudeDepth: 5.0,
-    fontSize: 25.0,
-    letterSpacing: 0.0,
-    textThickness: 0.0,
-    fillMode: 'embossed',
-    mirrorText: false,
-    baseplateEnabled: true,
-    baseplateProfile: 'fillet',
-    baseplateThickness: 2.0,
-    baseplatePadding: 4.0,
-    baseplateRadius: 4.0,
-    mountHoleEnabled: false,
-    threadStandard: '1/4-20',
-    mountHoleOffset: 0.0,
-    mountHoleDepthRatio: 0.90,
-    textColor: '#818cf8',
-    baseColor: '#475569',
-    threadColor: '#f59e0b'
-  };
 
   // Human-Readable Minimal Shareable Link Generator (Only non-default fields included!)
   function generateShareableURL() {
