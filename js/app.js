@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import * as opentype from 'opentype.js';
+import JSZip from 'jszip';
 
 // Cloudflare Worker API URL for zero-cors font package downloads
 window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev';
@@ -775,7 +776,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       if (isFont) {
         parsedFont = opentype.parse(arrayBuffer);
       } else {
-        const zip = await window.JSZip.loadAsync(arrayBuffer);
+        const zip = await JSZip.loadAsync(arrayBuffer);
         let fontZipFile = null;
 
         for (const filename of Object.keys(zip.files)) {
