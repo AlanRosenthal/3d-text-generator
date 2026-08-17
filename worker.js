@@ -1,7 +1,7 @@
 /**
  * Cloudflare Worker / Edge Proxy for 3D Text STL Studio
- * Resolves daFont links (e.g., https://www.dafont.com/verandah-reverie.font)
- * by trying underscore, hyphen, and direct page download routes seamlessly.
+ * Resolves daFont URLs (e.g., https://www.dafont.com/verandah-reverie.font)
+ * by fetching the target URL directly and returning binary font data.
  */
 
 export default {
@@ -21,30 +21,26 @@ export default {
       });
     }
 
-    const slug = url.searchParams.get('f');
     const directUrl = url.searchParams.get('url');
 
-    const targetUrls = [];
-    if (directUrl) {
-      targetUrls.push(directUrl);
+    if (!directUrl) {
+      return new Response('Missing parameter: use ?url=https://www.dafont.com/...', {
+        status: 400,
+        headers: { 'Access-Control-Allow-Origin': '*' }
+      });
     }
-    if (slug) {
-      const cleanSlug = slug.replace(/\.font$/i, '');
-      const underscoreSlug = cleanSlug.replace(/-/g, '_');
-      const hyphenSlug = cleanSlug.replace(/_/g, '-');
 
+    // Target URLs: try direct URL and fallback download endpoint extracted from daFont URL
+    const targetUrls = [directUrl];
+    const match = directUrl.match(/f=([a-zA-Z0-9_-]+)/) || directUrl.match(/dafont\.com\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1] && match[1] !== 'dl') {
+      const slug = match[1].replace(/\.font$/i, '');
+      const underscoreSlug = slug.replace(/-/g, '_');
+      const hyphenSlug = slug.replace(/_/g, '-');
       targetUrls.push(`https://dl.dafont.com/dl/?f=${encodeURIComponent(underscoreSlug)}`);
       if (hyphenSlug !== underscoreSlug) {
         targetUrls.push(`https://dl.dafont.com/dl/?f=${encodeURIComponent(hyphenSlug)}`);
       }
-      targetUrls.push(`https://www.dafont.com/${encodeURIComponent(hyphenSlug)}.font`);
-    }
-
-    if (targetUrls.length === 0) {
-      return new Response('Missing parameter: use ?f=fontname or ?url=https://...', {
-        status: 400,
-        headers: { 'Access-Control-Allow-Origin': '*' }
-      });
     }
 
     let lastError = null;

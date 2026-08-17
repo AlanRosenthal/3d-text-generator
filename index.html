@@ -6,14 +6,16 @@
   <title>3D Text STL Studio — daFont & Custom Font 3D Print Generator</title>
   <meta name="description" content="Generate 3D printable STL files from text using fonts from daFont or custom TTF/OTF files directly in your browser.">
   <link rel="stylesheet" href="css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='%23818cf8'/><stop offset='100%' stop-color='%23c084fc'/></linearGradient></defs><path d='M 50 10 L 82 80 L 66 80 L 58 62 L 42 62 L 34 80 L 18 80 Z M 50 26 L 44 50 L 56 50 Z' fill='url(%23g)'/></svg>">
 </head>
 <body>
   <div class="app-container">
     <!-- Navigation Header -->
     <header class="app-header">
       <div class="header-brand" id="brand-home-link" style="cursor: pointer;" title="Return to main page">
-        <span class="brand-icon">📦</span>
+        <span class="brand-icon" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;">
+          <svg viewBox="0 0 100 100" width="32" height="32"><defs><linearGradient id="aGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#818cf8"/><stop offset="100%" stop-color="#c084fc"/></linearGradient><linearGradient id="aSide" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4f46e5"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient></defs><path d="M 50 12 L 82 82 L 67 82 L 59 64 L 41 64 L 33 82 L 18 82 Z" fill="url(#aSide)" transform="translate(3, 3)" opacity="0.6"/><path d="M 50 10 L 82 80 L 66 80 L 58 62 L 42 62 L 34 80 L 18 80 Z M 50 26 L 44 50 L 56 50 Z" fill="url(#aGrad)"/></svg>
+        </span>
         <div>
           <h1 class="brand-title">3D Text STL Studio</h1>
           <p class="brand-subtitle">Turn daFont & Custom Fonts into 3D Printable STL Files</p>
@@ -84,15 +86,15 @@
                 <label for="select-google-font">Font Source</label>
                 <select id="select-google-font" class="studio-select">
                   <optgroup label="Standard Fonts">
-                    <option value="arial" selected>Arial</option>
-                    <option value="impact">Impact</option>
-                    <option value="black">Arial Black</option>
-                    <option value="verdana">Verdana</option>
-                    <option value="trebuchet">Trebuchet MS</option>
-                    <option value="georgia">Georgia</option>
-                    <option value="courier">Courier New</option>
-                    <option value="comic">Comic Sans MS</option>
                     <option value="andale">Andale Mono</option>
+                    <option value="arial" selected>Arial</option>
+                    <option value="black">Arial Black</option>
+                    <option value="comic">Comic Sans MS</option>
+                    <option value="courier">Courier New</option>
+                    <option value="georgia">Georgia</option>
+                    <option value="impact">Impact</option>
+                    <option value="trebuchet">Trebuchet MS</option>
+                    <option value="verdana">Verdana</option>
                   </optgroup>
                   <optgroup label="Custom Font Options">
                     <option value="dafont">Custom Font from daFont.com</option>
@@ -278,9 +280,9 @@
               <div class="slider-group">
                 <div class="slider-header">
                   <span>Tolerance Compensation</span>
-                  <span class="badge" id="val-mounthole-offset">+0.20 mm</span>
+                  <span class="badge" id="val-mounthole-offset">+0.00 mm</span>
                 </div>
-                <input type="range" id="range-mounthole-offset" class="studio-slider" min="-0.50" max="0.50" step="0.05" value="0.2" />
+                <input type="range" id="range-mounthole-offset" class="studio-slider" min="-0.50" max="0.50" step="0.05" value="0" />
               </div>
 
               <!-- Hole Depth Ratio -->

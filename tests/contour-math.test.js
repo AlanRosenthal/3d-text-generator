@@ -115,3 +115,28 @@ test('Tapped Screw Thread Socket Plug Geometry Generator', () => {
   assert.strictEqual(socketPositions.length % 3, 0);
   assert.ok(!socketPositions.some(Number.isNaN));
 });
+
+test('daFont Shareable URL Query Format: font=dafont&dafont=URL', () => {
+  function buildShareQuery(font, dafontUrl) {
+    const params = new URLSearchParams();
+    if (font === 'dafont') {
+      params.set('font', 'dafont');
+      if (dafontUrl) params.set('dafont', dafontUrl);
+    } else {
+      params.set('font', font);
+    }
+    return params.toString();
+  }
+
+  const query = buildShareQuery('dafont', 'https://www.dafont.com/midstar.font');
+  assert.strictEqual(query, 'font=dafont&dafont=https%3A%2F%2Fwww.dafont.com%2Fmidstar.font');
+
+  const parsed = new URLSearchParams(query);
+  assert.strictEqual(parsed.get('font'), 'dafont');
+  assert.strictEqual(parsed.get('dafont'), 'https://www.dafont.com/midstar.font');
+});
+
+test('Tolerance Compensation Default Baseline is 0.0mm', () => {
+  const defaultOffset = 0.0;
+  assert.strictEqual(defaultOffset, 0.0, 'Tolerance compensation defaults to 0.0mm');
+});

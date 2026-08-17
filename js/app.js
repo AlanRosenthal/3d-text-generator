@@ -780,8 +780,9 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       }
 
       fontName = displayName;
-      currentFontKey = inputStr;
-      params.font = inputStr;
+      currentFontKey = 'dafont';
+      params.font = 'dafont';
+      params.dafontUrl = inputStr;
 
       const selectGoogleFont = document.getElementById('select-google-font');
       const dafontContainer = document.getElementById('dafont-import-container');
@@ -1443,6 +1444,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
   const DEFAULT_PARAMS = {
     text: 'Your Text Here',
     font: 'arial',
+    dafontUrl: '',
     extrudeDepth: 5.0,
     fontSize: 25.0,
     letterSpacing: 0.0,
@@ -1456,7 +1458,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     baseplateRadius: 4.0,
     mountHoleEnabled: false,
     threadStandard: '1/4-20',
-    mountHoleOffset: 0.20,
+    mountHoleOffset: 0.0,
     mountHoleDepthRatio: 0.90,
     textColor: '#818cf8',
     baseColor: '#475569',
@@ -1469,7 +1471,15 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     const url = new URL(window.location.origin + window.location.pathname);
 
     if (params.text !== DEFAULT_PARAMS.text) url.searchParams.set('text', params.text);
-    if (activeFont.toLowerCase() !== DEFAULT_PARAMS.font) url.searchParams.set('font', activeFont);
+
+    if (activeFont === 'dafont' || (params.dafontUrl && params.dafontUrl.includes('dafont.com')) || (activeFont && activeFont.includes('dafont.com'))) {
+      url.searchParams.set('font', 'dafont');
+      const dUrl = params.dafontUrl || (activeFont.includes('dafont.com') ? activeFont : '');
+      if (dUrl) url.searchParams.set('dafont', dUrl);
+    } else if (activeFont.toLowerCase() !== DEFAULT_PARAMS.font) {
+      url.searchParams.set('font', activeFont);
+    }
+
     if (params.fillMode !== DEFAULT_PARAMS.fillMode) url.searchParams.set('style', params.fillMode);
     if (params.extrudeDepth !== DEFAULT_PARAMS.extrudeDepth) url.searchParams.set('extrudeDepth', params.extrudeDepth);
     if (params.fontSize !== DEFAULT_PARAMS.fontSize) url.searchParams.set('fontHeight', params.fontSize);
@@ -1502,6 +1512,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
     if (searchParams.has('text')) params.text = searchParams.get('text');
     if (searchParams.has('font')) params.font = searchParams.get('font');
+    if (searchParams.has('dafont')) params.dafontUrl = searchParams.get('dafont');
     if (searchParams.has('style')) params.fillMode = searchParams.get('style');
     if (searchParams.has('extrudeDepth')) params.extrudeDepth = parseFloat(searchParams.get('extrudeDepth'));
     if (searchParams.has('fontHeight')) params.fontSize = parseFloat(searchParams.get('fontHeight'));
@@ -1536,7 +1547,12 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     const dafontContainer = document.getElementById('dafont-import-container');
     const dafontUrlInput = document.getElementById('dafont-url-input');
 
-    if (params.font) {
+    if (params.font === 'dafont' || (params.font && params.font.includes('dafont.com'))) {
+      if (selectGoogleFont) selectGoogleFont.value = 'dafont';
+      if (dafontContainer) dafontContainer.style.display = 'block';
+      const dUrl = params.dafontUrl || (params.font.includes('dafont.com') ? params.font : '');
+      if (dafontUrlInput && dUrl) dafontUrlInput.value = dUrl;
+    } else if (params.font) {
       const embeddedKeys = new Set(['arial', 'impact', 'black', 'verdana', 'trebuchet', 'georgia', 'courier', 'comic', 'andale']);
       const fontStr = params.font.toLowerCase().trim();
       const isEmbedded = embeddedKeys.has(fontStr) || (embeddedKeys.has(resolveFontKey(params.font)) && resolveFontKey(params.font) !== 'arial');
@@ -1544,10 +1560,6 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       if (isEmbedded) {
         if (selectGoogleFont) selectGoogleFont.value = resolveFontKey(params.font);
         if (dafontContainer) dafontContainer.style.display = 'none';
-      } else {
-        if (selectGoogleFont) selectGoogleFont.value = 'dafont';
-        if (dafontContainer) dafontContainer.style.display = 'block';
-        if (dafontUrlInput) dafontUrlInput.value = params.font;
       }
     }
 
