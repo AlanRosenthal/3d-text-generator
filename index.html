@@ -71,48 +71,26 @@
       <aside class="controls-panel">
         <div class="controls-scroll-area">
           
-          <!-- Card 1: Font Source -->
+          <!-- Card 1: daFont Importer -->
           <div class="studio-card">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
               <div class="card-header-title" style="display: flex; align-items: center; gap: 10px;">
                 <span class="card-num">1</span>
-                <h3>Font Source</h3>
+                <h3>daFont.com Font</h3>
               </div>
               <button class="btn btn-ghost" id="btn-reset-card-1" style="padding: 2px 10px; font-size: 11px; font-weight: 600; height: 26px; color: var(--accent-color, #818cf8);">Reset</button>
             </div>
             <div class="card-body">
-              <!-- 1. Fonts Dropdown (Includes Standard Fonts, daFont, and Custom Upload) -->
               <div class="field-group">
-                <label for="select-google-font">Font Source</label>
-                <select id="select-google-font" class="studio-select">
-                  <optgroup label="Standard Fonts">
-                    <option value="andale">Andale Mono</option>
-                    <option value="arial" selected>Arial</option>
-                    <option value="black">Arial Black</option>
-                    <option value="comic">Comic Sans MS</option>
-                    <option value="courier">Courier New</option>
-                    <option value="georgia">Georgia</option>
-                    <option value="impact">Impact</option>
-                    <option value="trebuchet">Trebuchet MS</option>
-                    <option value="verdana">Verdana</option>
-                  </optgroup>
-                  <optgroup label="Custom Font Options">
-                    <option value="dafont">Custom Font from daFont.com</option>
-                    <option value="upload">Upload Custom Font...</option>
-                  </optgroup>
-                </select>
-              </div>
-
-              <!-- 2. daFont Link Importer (Visible when Custom Font from daFont.com is selected) -->
-              <div class="field-group" id="dafont-import-container" style="margin-top: 12px; display: none;">
-                <label for="dafont-url-input">daFont URL Link</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                  <label for="dafont-url-input" style="margin-bottom: 0;">daFont URL Link</label>
+                  <a href="https://www.dafont.com" target="_blank" rel="noopener noreferrer" style="font-size: 11px; color: var(--accent-color, #818cf8); text-decoration: none; font-weight: 500;" title="Browse daFont.com in new tab">🌐 Browse daFont.com ↗</a>
+                </div>
                 <div class="url-import-row">
-                  <input type="url" id="dafont-url-input" class="studio-input" placeholder="Paste daFont link (e.g. https://www.dafont.com/midstar.font)..." />
+                  <input type="url" id="dafont-url-input" class="studio-input" value="https://www.dafont.com/agile-sloth.font" placeholder="Paste daFont link (e.g. https://www.dafont.com/agile-sloth.font)..." />
                   <button class="btn btn-secondary" id="btn-import-url">Import</button>
                 </div>
               </div>
-
-              <input type="file" id="font-file-input" accept=".ttf,.otf" hidden />
             </div>
           </div>
 
@@ -340,7 +318,6 @@
   </div>
 
   <!-- Vite ES Module Entry Point -->
-  <script type="module" src="lib/defaultFontData.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

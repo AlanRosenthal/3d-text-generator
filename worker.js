@@ -1,6 +1,6 @@
 /**
  * Cloudflare Worker / Generic CORS Proxy for 3D Text STL Studio
- * Generic proxy that fetches the requested target URL directly without site-specific logic.
+ * Generic proxy with Cloudflare Edge Caching and Browser Cache Headers.
  */
 
 export default {
@@ -31,6 +31,10 @@ export default {
 
     try {
       const response = await fetch(targetUrl, {
+        cf: {
+          cacheEverything: true,
+          cacheTtl: 86400
+        },
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': '*/*'
@@ -46,7 +50,7 @@ export default {
               'Access-Control-Allow-Origin': '*',
               'Access-Control-Allow-Methods': 'GET, OPTIONS',
               'Content-Type': 'application/octet-stream',
-              'Cache-Control': 'public, max-age=86400'
+              'Cache-Control': 'public, max-age=86400, s-maxage=86400'
             }
           });
         }

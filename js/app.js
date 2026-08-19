@@ -37,8 +37,8 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
   // Default Parameter Baseline Constants
   const DEFAULT_PARAMS = {
     text: 'Your Text Here',
-    font: 'arial',
-    dafontUrl: '',
+    font: 'dafont',
+    dafontUrl: 'https://www.dafont.com/agile-sloth.font',
     extrudeDepth: 5.0,
     fontSize: 25.0,
     letterSpacing: 0.0,
@@ -64,30 +64,19 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
   document.addEventListener('DOMContentLoaded', () => {
     initThreeJS();
-    setupDropzone();
     setupControlListeners();
 
     // Check if URL contains shareable settings
     const hasSharedParams = loadParamsFromURL();
-    let fontToLoad = 'arial';
 
     if (hasSharedParams) {
       syncUIFromParams();
       setStatus('Shared config loaded');
-      if (params.font) fontToLoad = params.font;
     }
 
-    // Load initial font (Embedded RAM Font vs daFont URL)
-    if (fontToLoad === 'dafont' || fontToLoad.includes('dafont.com')) {
-      const targetUrl = params.dafontUrl || (fontToLoad.includes('dafont.com') ? fontToLoad : '');
-      if (targetUrl && targetUrl.includes('dafont.com')) {
-        importFromDafontURL(targetUrl);
-      } else {
-        loadEmbeddedFont('arial');
-      }
-    } else {
-      loadEmbeddedFont(fontToLoad);
-    }
+    // Load initial font (daFont URL)
+    const targetUrl = params.dafontUrl || 'https://www.dafont.com/agile-sloth.font';
+    importFromDafontURL(targetUrl);
 
     // Force viewport layout resize sync pass after initial DOM paint
     setTimeout(() => {
@@ -101,79 +90,6 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     if (elSub) elSub.textContent = `Active Font: ${name}`;
     const elPri = document.getElementById('drop-primary');
     if (elPri) elPri.textContent = name;
-  }
-
-  // Resolve font key aliases directly to RAM embedded font keys
-  function resolveFontKey(fontStr) {
-    if (!fontStr) return 'arial';
-    const s = fontStr.toLowerCase().trim();
-
-    const mapping = {
-      'arial': 'arial',
-      'arial bold': 'arial',
-      'impact': 'impact',
-      'impact bold': 'impact',
-      'black': 'black',
-      'arial black': 'black',
-      'verdana': 'verdana',
-      'verdana bold': 'verdana',
-      'trebuchet': 'trebuchet',
-      'trebuchet ms': 'trebuchet',
-      'georgia': 'georgia',
-      'georgia bold': 'georgia',
-      'courier': 'courier',
-      'courier new': 'courier',
-      'comic': 'comic',
-      'comic sans': 'comic',
-      'comic sans ms': 'comic',
-      'andale': 'andale',
-      'andale mono': 'andale',
-      'roboto': 'arial',
-      'open-sans': 'verdana',
-      'montserrat': 'black',
-      'oswald': 'impact',
-      'lato': 'trebuchet',
-      'merriweather': 'georgia',
-      'raleway': 'comic',
-      'ptsans': 'courier',
-      'arimo': 'andale'
-    };
-
-    if (mapping[s]) return mapping[s];
-    for (const k in mapping) {
-      if (s.includes(k) || k.includes(s)) return mapping[k];
-    }
-    return 'arial';
-  }
-
-  // Load font directly from RAM payload (100% Zero-Fetch Guaranteed!)
-  function loadEmbeddedFont(fontKey = 'arial') {
-    const key = resolveFontKey(fontKey);
-
-    if (window.EMBEDDED_FONTS && window.EMBEDDED_FONTS[key]) {
-      try {
-        const item = window.EMBEDDED_FONTS[key];
-        const binaryString = atob(item.b64);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-        parsedFont = opentype.parse(bytes.buffer);
-        fontName = item.name;
-        currentFontKey = key;
-        params.font = key;
-
-        const selectGoogleFont = document.getElementById('select-google-font');
-        if (selectGoogleFont) selectGoogleFont.value = key;
-
-        updateFontStatusText(item.name);
-        setStatus(`Loaded: ${item.name}`);
-        update3DMesh();
-        return true;
-      } catch (err) {
-        console.error('Embedded font parse error:', err);
-      }
-    }
-    return false;
   }
 
   // Setup WebGL Three.js Viewport
@@ -236,21 +152,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     renderer.setSize(width, height);
   }
 
-  function setupDropzone() {
-    const fileInput = document.getElementById('font-file-input');
-
-    if (fileInput) {
-      fileInput.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files[0]) {
-          handleFontFile(e.target.files[0]);
-        }
-      });
-    }
-  }
-
   function setupControlListeners() {
-    const fileInput = document.getElementById('font-file-input');
-
     // Header Title Home Link (Clears shared URL parameters & returns to main page)
     const brandHomeLink = document.getElementById('brand-home-link');
     if (brandHomeLink) {
@@ -259,37 +161,15 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       });
     }
 
-    // Fonts Dropdown
-    const selectGoogleFont = document.getElementById('select-google-font');
-    const dafontContainer = document.getElementById('dafont-import-container');
-    const dafontUrlInput = document.getElementById('dafont-url-input');
-
-    if (selectGoogleFont) {
-      selectGoogleFont.addEventListener('change', (e) => {
-        const val = e.target.value;
-        if (val === 'dafont') {
-          if (dafontContainer) dafontContainer.style.display = 'block';
-          if (dafontUrlInput) dafontUrlInput.focus();
-        } else if (val === 'upload') {
-          if (dafontContainer) dafontContainer.style.display = 'none';
-          if (fileInput) fileInput.click();
-        } else {
-          if (dafontContainer) dafontContainer.style.display = 'none';
-          params.font = val;
-          currentFontKey = val;
-          loadEmbeddedFont(val);
-        }
-      });
-    }
-
     // daFont Custom URL / Name Importer
+    const dafontUrlInput = document.getElementById('dafont-url-input');
     const btnImportUrl = document.getElementById('btn-import-url');
     let dafontDebounceTimer = null;
 
     const triggerImport = () => {
       const urlInput = dafontUrlInput ? dafontUrlInput.value.trim() : '';
       if (!urlInput) {
-        alert('Please paste a valid daFont URL link (e.g. https://www.dafont.com/midstar.font).');
+        alert('Please paste a valid daFont URL link (e.g. https://www.dafont.com/agile-sloth.font).');
         return;
       }
       importFromDafontURL(urlInput);
@@ -314,21 +194,12 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       });
     }
 
-    // Upload Custom Font Button
-    const btnUploadFont = document.getElementById('btn-upload-font');
-    if (btnUploadFont && fileInput) {
-      btnUploadFont.addEventListener('click', () => fileInput.click());
-    }
-
     // --- PER-SECTION RESET BUTTON HANDLERS ---
     const btnResetCard1 = document.getElementById('btn-reset-card-1');
     if (btnResetCard1) {
       btnResetCard1.addEventListener('click', () => {
-        if (selectGoogleFont) selectGoogleFont.value = 'arial';
-        if (dafontUrlInput) dafontUrlInput.value = '';
-        if (dafontContainer) dafontContainer.style.display = 'none';
-        if (fileInput) fileInput.value = '';
-        loadEmbeddedFont('arial');
+        if (dafontUrlInput) dafontUrlInput.value = DEFAULT_PARAMS.dafontUrl;
+        importFromDafontURL(DEFAULT_PARAMS.dafontUrl);
       });
     }
 
@@ -677,31 +548,6 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         update3DMesh();
       });
     }
-  }
-
-  function handleFontFile(file) {
-    if (!file.name.match(/\.(ttf|otf)$/i)) {
-      alert('Please upload a valid .TTF or .OTF font file.');
-      return;
-    }
-
-    fontName = file.name.replace(/\.(ttf|otf)$/i, '');
-    updateFontStatusText(file.name);
-
-    showLoader('Parsing font file...');
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        parsedFont = opentype.parse(e.target.result);
-        hideLoader();
-        setStatus('Font loaded');
-        update3DMesh();
-      } catch (err) {
-        hideLoader();
-        alert('Error parsing font: ' + err.message);
-      }
-    };
-    reader.readAsArrayBuffer(file);
   }
 
   // Import font via Cloudflare Worker API exclusively (Requires full daFont URL link!)
@@ -1534,25 +1380,8 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     const inputCustomText = document.getElementById('input-custom-text');
     if (inputCustomText) inputCustomText.value = params.text;
 
-    const selectGoogleFont = document.getElementById('select-google-font');
-    const dafontContainer = document.getElementById('dafont-import-container');
     const dafontUrlInput = document.getElementById('dafont-url-input');
-
-    if (params.font === 'dafont' || (params.font && params.font.includes('dafont.com'))) {
-      if (selectGoogleFont) selectGoogleFont.value = 'dafont';
-      if (dafontContainer) dafontContainer.style.display = 'block';
-      const dUrl = params.dafontUrl || (params.font.includes('dafont.com') ? params.font : '');
-      if (dafontUrlInput && dUrl) dafontUrlInput.value = dUrl;
-    } else if (params.font) {
-      const embeddedKeys = new Set(['arial', 'impact', 'black', 'verdana', 'trebuchet', 'georgia', 'courier', 'comic', 'andale']);
-      const fontStr = params.font.toLowerCase().trim();
-      const isEmbedded = embeddedKeys.has(fontStr) || (embeddedKeys.has(resolveFontKey(params.font)) && resolveFontKey(params.font) !== 'arial');
-
-      if (isEmbedded) {
-        if (selectGoogleFont) selectGoogleFont.value = resolveFontKey(params.font);
-        if (dafontContainer) dafontContainer.style.display = 'none';
-      }
-    }
+    if (dafontUrlInput && params.dafontUrl) dafontUrlInput.value = params.dafontUrl;
 
     const segBtns = document.querySelectorAll('.seg-btn');
     segBtns.forEach(btn => {
