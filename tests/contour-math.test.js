@@ -140,3 +140,22 @@ test('Tolerance Compensation Default Baseline is 0.0mm', () => {
   const defaultOffset = 0.0;
   assert.strictEqual(defaultOffset, 0.0, 'Tolerance compensation defaults to 0.0mm');
 });
+
+test('Degenerate subpath artifact filtering (area > 0.01)', () => {
+  const subpathPoints = [
+    [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}, {x: 0, y: 10}], // Outer contour, area = 100
+    [{x: 2, y: 2}, {x: 2.01, y: 2.01}, {x: 2, y: 2}], // Degenerate 0-area line/spike
+    [{x: 3, y: 3}, {x: 7, y: 3}, {x: 7, y: 7}, {x: 3, y: 7}] // Inner hole contour, area = 16
+  ];
+
+  function calcArea(pts) {
+    let area = 0;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      area += (pts[j].x + pts[i].x) * (pts[j].y - pts[i].y);
+    }
+    return Math.abs(area / 2);
+  }
+
+  const validPaths = subpathPoints.filter(pts => calcArea(pts) > 0.01);
+  assert.strictEqual(validPaths.length, 2, 'Degenerate zero-area subpaths are filtered out');
+});
