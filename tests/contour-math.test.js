@@ -4,6 +4,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { mergeOverlappingShapes } from '../js/geometry.js';
 
 test('Ray-casting point inside/outside polygon containment math', () => {
   function pointInPolygon(point, vs) {
@@ -158,4 +160,15 @@ test('Degenerate subpath artifact filtering (area > 0.01)', () => {
 
   const validPaths = subpathPoints.filter(pts => calcArea(pts) > 0.01);
   assert.strictEqual(validPaths.length, 2, 'Degenerate zero-area subpaths are filtered out');
+});
+
+test('mergeOverlappingShapes: 2D polygon union on squished overlapping letters', () => {
+  const s1 = new THREE.Shape();
+  s1.moveTo(0,0); s1.lineTo(10,0); s1.lineTo(10,10); s1.lineTo(0,10); s1.closePath();
+
+  const s2 = new THREE.Shape();
+  s2.moveTo(5,0); s2.lineTo(15,0); s2.lineTo(15,10); s2.lineTo(5,10); s2.closePath();
+
+  const merged = mergeOverlappingShapes([s1, s2]);
+  assert.strictEqual(merged.length, 1, 'Overlapping shapes are merged into a single composite shape');
 });

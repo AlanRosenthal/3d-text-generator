@@ -13,7 +13,10 @@ import {
   translateCurve2D,
   pointInPolygon,
   offsetPathCurves,
-  generateScrewThreadPlug
+  generateScrewThreadPlug,
+  reverseCurves,
+  getCurvesArea,
+  mergeOverlappingShapes
 } from './geometry.js';
 
 // Cloudflare Worker API URL for zero-cors font package downloads
@@ -687,6 +690,8 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
     currentGroup = new THREE.Group();
 
+    const isEngraved = (params.fillMode === 'engraved');
+
     // 1. Convert opentype glyph paths to Three.js Shapes
     const rawShapes = opentypeToThreeShapes(parsedFont, params.text, params.fontSize, params.letterSpacing, params.textThickness);
     if (!rawShapes || rawShapes.length === 0) return;
@@ -724,7 +729,6 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       shapes = shapes.map(s => mirrorShape2DX(s));
     }
 
-    const isEngraved = (params.fillMode === 'engraved');
     if (isEngraved) {
       params.baseplateEnabled = true;
     }
@@ -737,14 +741,14 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       const floorThickness = Math.max(0.2, totalBaseDepth - recessDepth);
 
       // 1. Recessed Letter Floor Inlay Mesh (Z = floorThickness)
-      const floorGeometry = new THREE.ExtrudeGeometry(shapes, { depth: 0.05, bevelEnabled: false });
+      const floorGeometry = new THREE.ExtrudeGeometry(shapes, { depth: 0.1, bevelEnabled: false });
       const textMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(params.textColor),
         roughness: 0.3,
         metalness: 0.2
       });
       const textMesh = new THREE.Mesh(floorGeometry, textMaterial);
-      textMesh.position.z = floorThickness;
+      textMesh.position.z = Math.max(0, floorThickness - 0.05);
       currentGroup.add(textMesh);
 
       // 2. Baseplate Mesh
@@ -789,9 +793,12 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
         // B. Top Carved Baseplate Walls (Z=floorThickness to Z=totalBaseDepth)
         const topBaseShape = createBaseplateShape(hw, hh, rad, params.baseplateProfile);
-        shapes.forEach(s => {
+        const mergedCarvedShapes = mergeOverlappingShapes(shapes);
+        mergedCarvedShapes.forEach(s => {
           const letterHole = new THREE.Path();
-          letterHole.curves = s.curves;
+          // In Three.js, shape holes MUST be Clockwise (area < 0).
+          const area = getCurvesArea(s.curves);
+          letterHole.curves = area > 0 ? reverseCurves(s.curves) : s.curves;
           topBaseShape.holes.push(letterHole);
         });
         if (params.mountHoleEnabled) {
@@ -809,7 +816,20 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         shapes.forEach(s => {
           s.holes.forEach(h => {
             const islandShape = new THREE.Shape();
-            islandShape.curves = h.curves;
+            // Standalone outer shapes MUST be Counter-Clockwise (area > 0).
+            const holeArea = getCurvesArea(h.curves);
+            islandShape.curves = holeArea < 0 ? reverseCurves(h.curves) : h.curves;
+
+            // Preserve sub-holes inside island pillars if present
+            if (h.holes && h.holes.length > 0) {
+              h.holes.forEach(sh => {
+                const subHole = new THREE.Path();
+                const shArea = getCurvesArea(sh.curves);
+                subHole.curves = shArea > 0 ? reverseCurves(sh.curves) : sh.curves;
+                islandShape.holes.push(subHole);
+              });
+            }
+
             const islandGeometry = new THREE.ExtrudeGeometry(islandShape, { depth: recessDepth, bevelEnabled: false });
             const islandMesh = new THREE.Mesh(islandGeometry, baseMaterial);
             islandMesh.position.z = floorThickness;

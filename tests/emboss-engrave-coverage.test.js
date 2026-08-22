@@ -170,3 +170,20 @@ test('Engraved Mode: Mirrored Text Interaction with Recess Geometry', () => {
   assert.strictEqual(normalTransform.scaleX, 1);
   assert.strictEqual(mirroredTransform.scaleX, -1, 'Mirror text applies X-axis reversal (scaleX=-1) for face-down printing');
 });
+
+test('Negative Letter Spacing: Squished letters support in Embossed and Engraved modes', () => {
+  function computeGlyphPositions(text, fontSize, letterSpacing) {
+    let currentX = 0;
+    const positions = [];
+    const advanceWidth = fontSize * 0.6 + letterSpacing;
+    for (let i = 0; i < text.length; i++) {
+      positions.push(currentX);
+      currentX += advanceWidth;
+    }
+    return positions;
+  }
+
+  const posEngravedSquished = computeGlyphPositions('ABC', 25.0, -3.5);
+  assert.strictEqual(posEngravedSquished[0], 0.0);
+  assert.strictEqual(posEngravedSquished[1], 11.5, 'Negative letter spacing (-3.5mm) squishes characters together');
+});

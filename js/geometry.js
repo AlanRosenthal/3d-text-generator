@@ -5,6 +5,111 @@
  */
 
 import * as THREE from 'three';
+import polygonClipping from 'polygon-clipping';
+
+// Merge overlapping 2D THREE.Shape objects into unified non-intersecting composite shapes
+export function mergeOverlappingShapes(shapes) {
+  if (!shapes || shapes.length <= 1) return shapes;
+
+  try {
+    const multi = [];
+    shapes.forEach(shape => {
+      const outerPts = shape.getPoints(24);
+      if (!outerPts || outerPts.length < 3) return;
+      if (outerPts[0].distanceTo(outerPts[outerPts.length - 1]) > 1e-4) {
+        outerPts.push(outerPts[0].clone());
+      }
+      const outerCoords = outerPts.map(p => [p.x, p.y]);
+      const poly = [outerCoords];
+
+      shape.holes.forEach(hole => {
+        const holePts = hole.getPoints(24);
+        if (holePts && holePts.length >= 3) {
+          if (holePts[0].distanceTo(holePts[holePts.length - 1]) > 1e-4) {
+            holePts.push(holePts[0].clone());
+          }
+          poly.push(holePts.map(p => [p.x, p.y]));
+        }
+      });
+
+      multi.push(poly);
+    });
+
+    if (multi.length === 0) return shapes;
+
+    const merged = polygonClipping.union(...multi);
+    const resultShapes = [];
+
+    merged.forEach(polyCoords => {
+      if (!polyCoords || polyCoords.length === 0) return;
+      const outerRing = polyCoords[0];
+      if (!outerRing || outerRing.length < 3) return;
+
+      const shape = new THREE.Shape();
+      shape.moveTo(outerRing[0][0], outerRing[0][1]);
+      for (let i = 1; i < outerRing.length; i++) {
+        shape.lineTo(outerRing[i][0], outerRing[i][1]);
+      }
+
+      for (let h = 1; h < polyCoords.length; h++) {
+        const holeRing = polyCoords[h];
+        if (holeRing && holeRing.length >= 3) {
+          const holePath = new THREE.Path();
+          holePath.moveTo(holeRing[0][0], holeRing[0][1]);
+          for (let i = 1; i < holeRing.length; i++) {
+            holePath.lineTo(holeRing[i][0], holeRing[i][1]);
+          }
+          shape.holes.push(holePath);
+        }
+      }
+
+      resultShapes.push(shape);
+    });
+
+    return resultShapes.length > 0 ? resultShapes : shapes;
+  } catch (err) {
+    console.warn('Polygon merging warning:', err);
+    return shapes;
+  }
+}
+
+// Reverse a single THREE curve direction (swaps start and end control points)
+export function reverseCurve(c) {
+  if (c.isLineCurve) {
+    return new THREE.LineCurve(c.v2.clone(), c.v1.clone());
+  } else if (c.isQuadraticBezierCurve) {
+    const p0 = c.v0 || c.v1;
+    const p1 = c.v1 || c.v2;
+    const p2 = c.v2;
+    return new THREE.QuadraticBezierCurve(p2.clone(), p1.clone(), p0.clone());
+  } else if (c.isCubicBezierCurve) {
+    const p0 = c.v0 || c.v1;
+    const p1 = c.v1 || c.v2;
+    const p2 = c.v2 || c.v3;
+    const p3 = c.v3;
+    return new THREE.CubicBezierCurve(p3.clone(), p2.clone(), p1.clone(), p0.clone());
+  }
+  return c;
+}
+
+// Reverse array of curves to flip winding direction (CCW -> CW or CW -> CCW)
+export function reverseCurves(curves) {
+  const rev = [];
+  for (let i = curves.length - 1; i >= 0; i--) {
+    rev.push(reverseCurve(curves[i]));
+  }
+  return rev;
+}
+
+// Calculate signed 2D area of an array of curves (Positive = CCW, Negative = CW)
+export function getCurvesArea(curves) {
+  if (!curves || curves.length === 0) return 0;
+  const tempPath = new THREE.Path();
+  tempPath.curves = curves;
+  const pts = tempPath.getPoints(Math.max(12, curves.length * 4));
+  if (!pts || pts.length < 3) return 0;
+  return THREE.ShapeUtils.area(pts);
+}
 
 // Create Baseplate 2D Shape with Corner Profile (Fillet, Chamfer, Square)
 export function createBaseplateShape(hw, hh, rad, profile = 'fillet') {
