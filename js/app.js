@@ -545,6 +545,16 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     if (btnExport) btnExport.addEventListener('click', exportSTL);
   }
 
+  let updateMeshFrameId = null;
+
+  function requestMeshUpdate() {
+    if (updateMeshFrameId) cancelAnimationFrame(updateMeshFrameId);
+    updateMeshFrameId = requestAnimationFrame(() => {
+      update3DMesh();
+      updateMeshFrameId = null;
+    });
+  }
+
   function bindSlider(id, badgeId, updateParam, unit = '', showSign = false) {
     const slider = document.getElementById(id);
     const badge = document.getElementById(badgeId);
@@ -556,6 +566,9 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
           const sign = (showSign && val > 0) ? '+' : '';
           badge.textContent = `${sign}${val.toFixed(1)} ${unit}`.trim();
         }
+        requestMeshUpdate();
+      });
+      slider.addEventListener('change', () => {
         update3DMesh();
       });
     }
@@ -966,7 +979,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       if (subPaths && subPaths.length > 0) {
         const pathInfos = [];
         subPaths.forEach(sp => {
-          const pts = sp.getPoints(16);
+          const pts = sp.getPoints(12);
           if (pts && pts.length >= 3) {
             if (pts[0].distanceTo(pts[pts.length - 1]) < 1e-4) {
               pts.pop();

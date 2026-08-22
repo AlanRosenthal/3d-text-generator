@@ -205,3 +205,45 @@ test('Worker API: Missing url parameter error', async () => {
   const text = await res.text();
   assert.ok(text.includes('Missing parameter'));
 });
+
+// --- SECTION 8: ADDITIONAL CAD GEOMETRY & CURVE EDGE CASES ---
+
+test('reverseCurve: CubicBezierCurve reversal', () => {
+  const cubic = new THREE.CubicBezierCurve(
+    new THREE.Vector2(0, 0),
+    new THREE.Vector2(3, 9),
+    new THREE.Vector2(7, 9),
+    new THREE.Vector2(10, 0)
+  );
+  const revCubic = reverseCurve(cubic);
+  assert.strictEqual(revCubic.v0.x, 10);
+  assert.strictEqual(revCubic.v1.x, 7);
+  assert.strictEqual(revCubic.v2.x, 3);
+  assert.strictEqual(revCubic.v3.x, 0);
+});
+
+test('mergeOverlappingShapes: Overlapping shapes with inner holes (e.g. letter O overlapping letter X)', () => {
+  const sO = new THREE.Shape();
+  sO.moveTo(0,0); sO.lineTo(10,0); sO.lineTo(10,10); sO.lineTo(0,10); sO.closePath();
+  const holeO = new THREE.Path();
+  holeO.moveTo(3,3); holeO.lineTo(7,3); holeO.lineTo(7,7); holeO.lineTo(3,7); holeO.closePath();
+  sO.holes.push(holeO);
+
+  const sX = new THREE.Shape();
+  sX.moveTo(5,0); sX.lineTo(15,0); sX.lineTo(15,10); sX.lineTo(5,10); sX.closePath();
+
+  const merged = mergeOverlappingShapes([sO, sX]);
+  assert.strictEqual(merged.length, 1, 'Overlapping shape with hole merges into single composite shape');
+  assert.strictEqual(merged[0].holes.length, 1, 'Inner hole is preserved inside merged composite shape');
+});
+
+test('offsetPathCurves: Adaptive sampling and miter clamping', () => {
+  const s = new THREE.Shape();
+  s.moveTo(0,0); s.lineTo(10,0); s.lineTo(10,10); s.lineTo(0,10); s.closePath();
+
+  const posOffset = offsetPathCurves(s.curves, 1.0);
+  assert.strictEqual(posOffset.length, 4);
+
+  const negOffset = offsetPathCurves(s.curves, -1.0);
+  assert.strictEqual(negOffset.length, 4);
+});

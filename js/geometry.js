@@ -14,7 +14,7 @@ export function mergeOverlappingShapes(shapes) {
   try {
     const multi = [];
     shapes.forEach(shape => {
-      const outerPts = shape.getPoints(24);
+      const outerPts = shape.getPoints(12);
       if (!outerPts || outerPts.length < 3) return;
       if (outerPts[0].distanceTo(outerPts[outerPts.length - 1]) > 1e-4) {
         outerPts.push(outerPts[0].clone());
@@ -23,7 +23,7 @@ export function mergeOverlappingShapes(shapes) {
       const poly = [outerCoords];
 
       shape.holes.forEach(hole => {
-        const holePts = hole.getPoints(24);
+        const holePts = hole.getPoints(12);
         if (holePts && holePts.length >= 3) {
           if (holePts[0].distanceTo(holePts[holePts.length - 1]) > 1e-4) {
             holePts.push(holePts[0].clone());
@@ -250,35 +250,48 @@ export function offsetPathCurves(curves, offset) {
 
   const tempPath = new THREE.Path();
   tempPath.curves = curves;
-  const pts = tempPath.getPoints(Math.max(12, curves.length * 4));
+  const pts = tempPath.getPoints(Math.min(24, Math.max(10, curves.length * 2)));
   if (!pts || pts.length < 3) return curves;
 
-  const newPath = new THREE.Path();
+  if (pts[0].distanceTo(pts[pts.length - 1]) < 1e-4) pts.pop();
   const n = pts.length;
+  if (n < 3) return curves;
 
-  for (let i = 0; i < n - 1; i++) {
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
+  const isClockwise = THREE.ShapeUtils.area(pts) < 0;
+  const sign = isClockwise ? -1 : 1;
 
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
-    const len = Math.hypot(dx, dy);
+  const newPts = [];
+  for (let i = 0; i < n; i++) {
+    const prev = pts[(i - 1 + n) % n];
+    const curr = pts[i];
+    const next = pts[(i + 1) % n];
 
-    if (len < 0.0001) continue;
+    const e1x = curr.x - prev.x, e1y = curr.y - prev.y;
+    const len1 = Math.hypot(e1x, e1y) || 1;
+    const n1x = (e1y / len1) * sign, n1y = (-e1x / len1) * sign;
 
-    const nx = -dy / len;
-    const ny = dx / len;
+    const e2x = next.x - curr.x, e2y = next.y - curr.y;
+    const len2 = Math.hypot(e2x, e2y) || 1;
+    const n2x = (e2y / len2) * sign, n2y = (-e2x / len2) * sign;
 
-    const o1 = new THREE.Vector2(p1.x + nx * offset, p1.y + ny * offset);
-    const o2 = new THREE.Vector2(p2.x + nx * offset, p2.y + ny * offset);
+    let nx = n1x + n2x, ny = n1y + n2y;
+    const norm = Math.hypot(nx, ny) || 1;
+    nx /= norm;
+    ny /= norm;
 
-    if (i === 0) {
-      newPath.moveTo(o1.x, o1.y);
-    }
-    newPath.lineTo(o2.x, o2.y);
+    const dot = n1x * n2x + n1y * n2y;
+    const miterScale = Math.min(2.0, 1.0 / Math.max(0.3, Math.sqrt((1 + dot) / 2)));
+    const effOffset = offset * miterScale;
+
+    newPts.push(new THREE.Vector2(curr.x + nx * effOffset, curr.y + ny * effOffset));
   }
+  newPts.push(newPts[0].clone());
 
-  return newPath.curves;
+  const newCurves = [];
+  for (let j = 0; j < newPts.length - 1; j++) {
+    newCurves.push(new THREE.LineCurve(newPts[j], newPts[j + 1]));
+  }
+  return newCurves;
 }
 
 // Generate Watertight Tapped Helical Thread Socket Geometry
