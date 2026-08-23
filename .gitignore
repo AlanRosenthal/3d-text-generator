@@ -62,3 +62,7 @@ node_modules/.cache
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Temporary scratch files and downloads
+scratch/
+scratch
