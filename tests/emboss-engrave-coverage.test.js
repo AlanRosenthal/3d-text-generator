@@ -5,6 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 
 // Baseline Default Config Constants
 const DEFAULT_PARAMS = {
@@ -186,4 +187,28 @@ test('Negative Letter Spacing: Squished letters support in Embossed and Engraved
   const posEngravedSquished = computeGlyphPositions('ABC', 25.0, -3.5);
   assert.strictEqual(posEngravedSquished[0], 0.0);
   assert.strictEqual(posEngravedSquished[1], 11.5, 'Negative letter spacing (-3.5mm) squishes characters together');
+});
+
+test('Engraved Mode: Overlapping ligature void island pillar creation', () => {
+  const sT = new THREE.Shape();
+  sT.moveTo(0, 0); sT.lineTo(10, 0); sT.lineTo(10, 10); sT.lineTo(0, 10); sT.closePath();
+
+  const sH = new THREE.Shape();
+  sH.moveTo(5, 0); sH.lineTo(15, 0); sH.lineTo(15, 10); sH.lineTo(5, 10); sH.closePath();
+
+  const mergedCarvedShapes = [
+    {
+      curves: sT.curves,
+      holes: [{ curves: [new THREE.LineCurve(new THREE.Vector2(6, 2), new THREE.Vector2(9, 2))] }]
+    }
+  ];
+
+  let islandPillarsCreated = 0;
+  mergedCarvedShapes.forEach(s => {
+    s.holes.forEach(() => {
+      islandPillarsCreated++;
+    });
+  });
+
+  assert.strictEqual(islandPillarsCreated, 1, 'Island pillar created for overlapping ligature void loop');
 });

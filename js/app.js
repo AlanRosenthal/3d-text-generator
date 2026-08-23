@@ -825,8 +825,8 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         topMesh.position.z = floorThickness;
         currentGroup.add(topMesh);
 
-        // C. Inner Island Pillars for letters with holes ('A', 'B', 'P', 'R', 'g', 'o', '0', '8')
-        shapes.forEach(s => {
+        // C. Inner Island Pillars (Universally captures all character counter loops & overlapping ligature voids)
+        mergedCarvedShapes.forEach(s => {
           s.holes.forEach(h => {
             const islandShape = new THREE.Shape();
             // Standalone outer shapes MUST be Counter-Clockwise (area > 0).
