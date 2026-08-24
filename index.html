@@ -135,6 +135,34 @@
                 <input type="range" id="range-text-thickness" class="studio-slider" min="-1.0" max="3.0" step="0.1" value="0.0" />
               </div>
 
+              <!-- Text Frame Enclosure -->
+              <div class="field-group" style="margin-top: 10px;">
+                <label>Text Frame Enclosure</label>
+                <select id="select-text-frame" class="studio-select">
+                  <option value="none">None (No Frame)</option>
+                  <option value="rectangle">Rectangle Frame</option>
+                  <option value="circle">Circle / Ellipse Frame</option>
+                </select>
+              </div>
+
+              <!-- Text Frame Settings (Conditional) -->
+              <div id="frame-controls-body" style="display: none; flex-direction: column; gap: 8px; margin-top: 8px;">
+                <div class="slider-group">
+                  <div class="slider-header">
+                    <span>Frame Thickness</span>
+                    <span class="badge" id="val-frame-thick">2.0 mm</span>
+                  </div>
+                  <input type="range" id="range-frame-thick" class="studio-slider" min="0.5" max="8.0" step="0.5" value="2.0" />
+                </div>
+                <div class="slider-group">
+                  <div class="slider-header">
+                    <span>Frame Padding</span>
+                    <span class="badge" id="val-frame-pad">3.0 mm</span>
+                  </div>
+                  <input type="range" id="range-frame-pad" class="studio-slider" min="1.0" max="15.0" step="0.5" value="3.0" />
+                </div>
+              </div>
+
               <div class="field-row-toggle" style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
                 <label for="check-mirror-text" style="font-size: 12px; color: var(--text-muted);">Mirror Text (Face-Down 3D Print)</label>
                 <label class="toggle-switch">

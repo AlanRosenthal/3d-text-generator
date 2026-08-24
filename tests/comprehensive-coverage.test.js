@@ -17,7 +17,9 @@ import {
   reverseCurve,
   reverseCurves,
   getCurvesArea,
-  mergeOverlappingShapes
+  mergeOverlappingShapes,
+  createTextFrameShape,
+  getEffectiveTextBounds
 } from '../js/geometry.js';
 import worker from '../worker.js';
 
@@ -246,4 +248,32 @@ test('offsetPathCurves: Adaptive sampling and miter clamping', () => {
 
   const negOffset = offsetPathCurves(s.curves, -1.0);
   assert.strictEqual(negOffset.length, 4);
+});
+
+// --- SECTION 9: TEXT FRAME ENCLOSURE GEOMETRY ---
+
+test('createTextFrameShape: Circle and Rectangle frame enclosures', () => {
+  assert.strictEqual(createTextFrameShape(40, 15, 'none'), null);
+
+  const circleFrame = createTextFrameShape(40, 15, 'circle', 2.0, 3.0);
+  assert.ok(circleFrame, 'Circle frame shape created');
+  assert.strictEqual(circleFrame.holes.length, 1, 'Circle frame shape has inner hole');
+
+  const rectFrame = createTextFrameShape(40, 15, 'rectangle', 2.0, 3.0);
+  assert.ok(rectFrame, 'Rectangle frame shape created');
+  assert.strictEqual(rectFrame.holes.length, 1, 'Rectangle frame shape has inner hole');
+});
+
+test('getEffectiveTextBounds: Auto-enlarging baseplate calculation logic for frames', () => {
+  const boundsNone = getEffectiveTextBounds(50, 20, 'none');
+  assert.strictEqual(boundsNone.effectiveWidth, 50);
+  assert.strictEqual(boundsNone.effectiveHeight, 20);
+
+  const boundsRect = getEffectiveTextBounds(50, 20, 'rectangle', 2.0, 3.0);
+  assert.strictEqual(boundsRect.effectiveWidth, 60, 'Rectangle frame expands width by 2*(pad+thick)');
+  assert.strictEqual(boundsRect.effectiveHeight, 30, 'Rectangle frame expands height by 2*(pad+thick)');
+
+  const boundsCircle = getEffectiveTextBounds(50, 20, 'circle', 2.0, 3.0);
+  assert.strictEqual(boundsCircle.effectiveWidth, 60, 'Circle frame expands outer diameter');
+  assert.strictEqual(boundsCircle.effectiveHeight, 60, 'Circle frame forms square outer bounding diameter');
 });

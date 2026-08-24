@@ -7,6 +7,83 @@
 import * as THREE from 'three';
 import polygonClipping from 'polygon-clipping';
 
+// Calculate effective 2D bounds enclosing text and text frame enclosure
+export function getEffectiveTextBounds(textWidth, textHeight, frameType = 'none', frameThickness = 2.0, framePadding = 3.0) {
+  let effectiveWidth = textWidth;
+  let effectiveHeight = textHeight;
+
+  if (frameType && frameType !== 'none') {
+    if (frameType === 'circle') {
+      const rxOuter = (textWidth / 2) + framePadding + frameThickness;
+      const ryOuter = (textHeight / 2) + framePadding + frameThickness;
+      const rOuter = Math.max(rxOuter, ryOuter);
+      effectiveWidth = rOuter * 2;
+      effectiveHeight = rOuter * 2;
+    } else {
+      effectiveWidth = textWidth + (framePadding * 2) + (frameThickness * 2);
+      effectiveHeight = textHeight + (framePadding * 2) + (frameThickness * 2);
+    }
+  }
+
+  return { effectiveWidth, effectiveHeight };
+}
+
+// Create 2D Text Frame Enclosure Shape (Circle or Rectangle Frame around text)
+export function createTextFrameShape(textWidth, textHeight, frameType = 'none', frameThickness = 2.0, framePadding = 3.0) {
+  if (!frameType || frameType === 'none') return null;
+
+  const shape = new THREE.Shape();
+
+  if (frameType === 'circle') {
+    const rxOuter = (textWidth / 2) + framePadding + frameThickness;
+    const ryOuter = (textHeight / 2) + framePadding + frameThickness;
+    const rOuter = Math.max(rxOuter, ryOuter);
+
+    const rxInner = (textWidth / 2) + framePadding;
+    const ryInner = (textHeight / 2) + framePadding;
+    const rInner = Math.max(rxInner, ryInner);
+
+    const segments = 64;
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * Math.PI * 2;
+      const x = Math.cos(theta) * rOuter;
+      const y = Math.sin(theta) * rOuter;
+      if (i === 0) shape.moveTo(x, y);
+      else shape.lineTo(x, y);
+    }
+
+    const holePath = new THREE.Path();
+    for (let i = segments; i >= 0; i--) {
+      const theta = (i / segments) * Math.PI * 2;
+      const x = Math.cos(theta) * rInner;
+      const y = Math.sin(theta) * rInner;
+      if (i === segments) holePath.moveTo(x, y);
+      else holePath.lineTo(x, y);
+    }
+    shape.holes.push(holePath);
+  } else {
+    // Rectangle frame
+    const hwOuter = (textWidth / 2) + framePadding + frameThickness;
+    const hhOuter = (textHeight / 2) + framePadding + frameThickness;
+    const radOuter = Math.min(4.0, Math.min(hwOuter, hhOuter));
+
+    const hwInner = (textWidth / 2) + framePadding;
+    const hhInner = (textHeight / 2) + framePadding;
+    const radInner = Math.min(3.0, Math.min(hwInner, hhInner));
+
+    const outerShape = createBaseplateShape(hwOuter, hhOuter, radOuter, 'fillet');
+    shape.curves = outerShape.curves;
+
+    const innerShape = createBaseplateShape(hwInner, hhInner, radInner, 'fillet');
+    const holePath = new THREE.Path();
+    const area = getCurvesArea(innerShape.curves);
+    holePath.curves = area > 0 ? reverseCurves(innerShape.curves) : innerShape.curves;
+    shape.holes.push(holePath);
+  }
+
+  return shape;
+}
+
 // Merge overlapping 2D THREE.Shape objects into unified non-intersecting composite shapes
 export function mergeOverlappingShapes(shapes) {
   if (!shapes || shapes.length <= 1) return shapes;

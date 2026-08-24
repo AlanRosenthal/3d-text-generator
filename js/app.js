@@ -16,7 +16,9 @@ import {
   generateScrewThreadPlug,
   reverseCurves,
   getCurvesArea,
-  mergeOverlappingShapes
+  mergeOverlappingShapes,
+  createTextFrameShape,
+  getEffectiveTextBounds
 } from './geometry.js';
 
 // Cloudflare Worker API URL for zero-cors font package downloads
@@ -54,6 +56,9 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     fontSize: 25.0,
     letterSpacing: 0.0,
     textThickness: 0.0,
+    textFrame: 'none',
+    textFrameThick: 2.0,
+    textFramePad: 3.0,
     fillMode: 'embossed',
     mirrorText: false,
     baseplateEnabled: true,
@@ -221,6 +226,9 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         params.fillMode = DEFAULT_PARAMS.fillMode;
         params.letterSpacing = DEFAULT_PARAMS.letterSpacing;
         params.textThickness = DEFAULT_PARAMS.textThickness;
+        params.textFrame = DEFAULT_PARAMS.textFrame;
+        params.textFrameThick = DEFAULT_PARAMS.textFrameThick;
+        params.textFramePad = DEFAULT_PARAMS.textFramePad;
         params.mirrorText = DEFAULT_PARAMS.mirrorText;
 
         const inputCustomText = document.getElementById('input-custom-text');
@@ -234,6 +242,13 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
         bindSliderValue('range-letter-spacing', params.letterSpacing, 'val-letter-spacing', 'mm');
         bindSliderValue('range-text-thickness', params.textThickness, 'val-text-thickness', 'mm');
+        bindSliderValue('range-frame-thick', params.textFrameThick, 'val-frame-thick', 'mm');
+        bindSliderValue('range-frame-pad', params.textFramePad, 'val-frame-pad', 'mm');
+
+        const selectTextFrame = document.getElementById('select-text-frame');
+        if (selectTextFrame) selectTextFrame.value = params.textFrame;
+        const frameBody = document.getElementById('frame-controls-body');
+        if (frameBody) frameBody.style.display = 'none';
 
         const checkMirrorText = document.getElementById('check-mirror-text');
         if (checkMirrorText) checkMirrorText.checked = params.mirrorText;
@@ -416,11 +431,24 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       });
     }
 
+    // Text Frame Dropdown & Sliders
+    const selectTextFrame = document.getElementById('select-text-frame');
+    if (selectTextFrame) {
+      selectTextFrame.addEventListener('change', (e) => {
+        params.textFrame = e.target.value || 'none';
+        const frameBody = document.getElementById('frame-controls-body');
+        if (frameBody) frameBody.style.display = (params.textFrame !== 'none') ? 'flex' : 'none';
+        update3DMesh();
+      });
+    }
+
     // Sliders Bindings
     bindSlider('range-extrude-depth', 'val-extrude-depth', (val) => { params.extrudeDepth = val; }, 'mm');
     bindSlider('range-font-size', 'val-font-size', (val) => { params.fontSize = val; }, 'mm');
     bindSlider('range-letter-spacing', 'val-letter-spacing', (val) => { params.letterSpacing = val; }, 'mm');
     bindSlider('range-text-thickness', 'val-text-thickness', (val) => { params.textThickness = val; }, 'mm');
+    bindSlider('range-frame-thick', 'val-frame-thick', (val) => { params.textFrameThick = val; }, 'mm');
+    bindSlider('range-frame-pad', 'val-frame-pad', (val) => { params.textFramePad = val; }, 'mm');
     bindSlider('range-base-thick', 'val-base-thick', (val) => { params.baseplateThickness = val; }, 'mm');
     bindSlider('range-base-pad', 'val-base-pad', (val) => { params.baseplatePadding = val; }, 'mm');
     bindSlider('range-base-radius', 'val-base-radius', (val) => { params.baseplateRadius = val; }, 'mm');
@@ -766,9 +794,10 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
       // 2. Baseplate Mesh
       if (params.baseplateEnabled) {
+        const { effectiveWidth, effectiveHeight } = getEffectiveTextBounds(textWidth, textHeight, params.textFrame, params.textFrameThick, params.textFramePad);
         const pad = params.baseplatePadding;
-        const baseWidth = textWidth + (pad * 2);
-        const baseHeight = textHeight + (pad * 2);
+        const baseWidth = effectiveWidth + (pad * 2);
+        const baseHeight = effectiveHeight + (pad * 2);
 
         const hw = baseWidth / 2;
         const hh = baseHeight / 2;
@@ -882,9 +911,10 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       currentGroup.add(textMesh);
 
       if (params.baseplateEnabled) {
+        const { effectiveWidth, effectiveHeight } = getEffectiveTextBounds(textWidth, textHeight, params.textFrame, params.textFrameThick, params.textFramePad);
         const pad = params.baseplatePadding;
-        const baseWidth = textWidth + (pad * 2);
-        const baseHeight = textHeight + (pad * 2);
+        const baseWidth = effectiveWidth + (pad * 2);
+        const baseHeight = effectiveHeight + (pad * 2);
 
         const hw = baseWidth / 2;
         const hh = baseHeight / 2;
@@ -937,6 +967,23 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       }
     }
 
+    // Render 3D Text Frame Enclosure (Circle or Rectangle Frame around text)
+    if (params.textFrame && params.textFrame !== 'none') {
+      const frameShape = createTextFrameShape(textWidth, textHeight, params.textFrame, params.textFrameThick, params.textFramePad);
+      if (frameShape) {
+        const frameDepth = params.extrudeDepth;
+        const frameGeometry = new THREE.ExtrudeGeometry(frameShape, { depth: frameDepth, bevelEnabled: false });
+        const textMaterial = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(params.textColor),
+          roughness: 0.3,
+          metalness: 0.2
+        });
+        const frameMesh = new THREE.Mesh(frameGeometry, textMaterial);
+        frameMesh.position.z = (isEngraved || params.baseplateEnabled) ? totalBaseDepth : 0;
+        currentGroup.add(frameMesh);
+      }
+    }
+
     scene.add(currentGroup);
     updateMeshStats(currentGroup);
   }
@@ -985,12 +1032,14 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
               pts.pop();
             }
             if (pts.length >= 3) {
-              const area = Math.abs(THREE.ShapeUtils.area(pts));
-              if (area > 0.01) {
+              const rawArea = THREE.ShapeUtils.area(pts);
+              const absArea = Math.abs(rawArea);
+              if (absArea > 0.01) {
                 pathInfos.push({
                   subPath: sp,
                   points: pts,
-                  area: area
+                  rawArea: rawArea,
+                  area: absArea
                 });
               }
             }
@@ -1004,11 +1053,17 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
           for (let k = 0; k < pathInfos.length; k++) {
             const pInfo = pathInfos[k];
             let parent = null;
-            const testPt = pInfo.points[0];
+
+            const nPts = pInfo.points.length;
+            const candidatePts = [
+              pInfo.points[0],
+              pInfo.points[Math.floor(nPts / 3)],
+              pInfo.points[Math.floor(2 * nPts / 3)]
+            ];
 
             for (let m = 0; m < charRootShapes.length; m++) {
               const rShape = charRootShapes[m];
-              if (pointInPolygon(testPt, rShape.points)) {
+              if (candidatePts.some(pt => pointInPolygon(pt, rShape.points))) {
                 parent = rShape;
                 break;
               }
@@ -1016,11 +1071,15 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
 
             if (parent) {
               const holePath = new THREE.Path();
-              holePath.curves = textThickness !== 0 ? offsetPathCurves(pInfo.subPath.curves, -textThickness) : pInfo.subPath.curves;
+              const hCurves = textThickness !== 0 ? offsetPathCurves(pInfo.subPath.curves, -textThickness) : pInfo.subPath.curves;
+              // Hole paths in Three.js MUST be Clockwise (rawArea < 0)
+              holePath.curves = pInfo.rawArea > 0 ? reverseCurves(hCurves) : hCurves;
               parent.shape.holes.push(holePath);
             } else {
               const shape = new THREE.Shape();
-              shape.curves = textThickness !== 0 ? offsetPathCurves(pInfo.subPath.curves, textThickness) : pInfo.subPath.curves;
+              const sCurves = textThickness !== 0 ? offsetPathCurves(pInfo.subPath.curves, textThickness) : pInfo.subPath.curves;
+              // Root Outer Shapes in Three.js MUST be Counter-Clockwise (rawArea > 0)
+              shape.curves = pInfo.rawArea < 0 ? reverseCurves(sCurves) : sCurves;
               charRootShapes.push({
                 shape: shape,
                 points: pInfo.points
@@ -1082,6 +1141,9 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     if (params.fontSize !== DEFAULT_PARAMS.fontSize) url.searchParams.set('fontHeight', params.fontSize);
     if (params.letterSpacing !== DEFAULT_PARAMS.letterSpacing) url.searchParams.set('letterSpacing', params.letterSpacing);
     if (params.textThickness !== DEFAULT_PARAMS.textThickness) url.searchParams.set('textThickness', params.textThickness);
+    if (params.textFrame !== DEFAULT_PARAMS.textFrame) url.searchParams.set('textFrame', params.textFrame);
+    if (params.textFrameThick !== DEFAULT_PARAMS.textFrameThick) url.searchParams.set('textFrameThick', params.textFrameThick);
+    if (params.textFramePad !== DEFAULT_PARAMS.textFramePad) url.searchParams.set('textFramePad', params.textFramePad);
     if (params.mirrorText !== DEFAULT_PARAMS.mirrorText) url.searchParams.set('mirrorText', params.mirrorText ? 'true' : 'false');
     if (params.baseplateEnabled !== DEFAULT_PARAMS.baseplateEnabled) url.searchParams.set('baseplate', params.baseplateEnabled ? 'true' : 'false');
     if (params.baseplateProfile !== DEFAULT_PARAMS.baseplateProfile) url.searchParams.set('baseProfile', params.baseplateProfile);
@@ -1115,6 +1177,9 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     if (searchParams.has('fontHeight')) params.fontSize = parseFloat(searchParams.get('fontHeight'));
     if (searchParams.has('letterSpacing')) params.letterSpacing = parseFloat(searchParams.get('letterSpacing'));
     if (searchParams.has('textThickness')) params.textThickness = parseFloat(searchParams.get('textThickness'));
+    if (searchParams.has('textFrame')) params.textFrame = searchParams.get('textFrame');
+    if (searchParams.has('textFrameThick')) params.textFrameThick = parseFloat(searchParams.get('textFrameThick'));
+    if (searchParams.has('textFramePad')) params.textFramePad = parseFloat(searchParams.get('textFramePad'));
     if (searchParams.has('mirrorText')) params.mirrorText = searchParams.get('mirrorText') === 'true';
     if (searchParams.has('baseplate')) params.baseplateEnabled = searchParams.get('baseplate') === 'true';
     if (searchParams.has('baseProfile')) params.baseplateProfile = searchParams.get('baseProfile');
@@ -1156,10 +1221,19 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     const selectBaseProfile = document.getElementById('select-baseplate-profile');
     if (selectBaseProfile) selectBaseProfile.value = params.baseplateProfile;
 
+    const selectTextFrame = document.getElementById('select-text-frame');
+    if (selectTextFrame) {
+      selectTextFrame.value = params.textFrame;
+      const frameBody = document.getElementById('frame-controls-body');
+      if (frameBody) frameBody.style.display = (params.textFrame !== 'none') ? 'flex' : 'none';
+    }
+
     bindSliderValue('range-extrude-depth', params.extrudeDepth, 'val-extrude-depth', 'mm');
     bindSliderValue('range-font-size', params.fontSize, 'val-font-size', 'mm');
     bindSliderValue('range-letter-spacing', params.letterSpacing, 'val-letter-spacing', 'mm');
     bindSliderValue('range-text-thickness', params.textThickness, 'val-text-thickness', 'mm');
+    bindSliderValue('range-frame-thick', params.textFrameThick, 'val-frame-thick', 'mm');
+    bindSliderValue('range-frame-pad', params.textFramePad, 'val-frame-pad', 'mm');
     bindSliderValue('range-base-thick', params.baseplateThickness, 'val-base-thick', 'mm');
     bindSliderValue('range-base-pad', params.baseplatePadding, 'val-base-pad', 'mm');
     bindSliderValue('range-base-radius', params.baseplateRadius, 'val-base-radius', 'mm');

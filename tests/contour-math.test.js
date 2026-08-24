@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { mergeOverlappingShapes } from '../js/geometry.js';
+import { mergeOverlappingShapes, getCurvesArea, reverseCurves } from '../js/geometry.js';
 
 test('Ray-casting point inside/outside polygon containment math', () => {
   function pointInPolygon(point, vs) {
@@ -171,4 +171,20 @@ test('mergeOverlappingShapes: 2D polygon union on squished overlapping letters',
 
   const merged = mergeOverlappingShapes([s1, s2]);
   assert.strictEqual(merged.length, 1, 'Overlapping shapes are merged into a single composite shape');
+});
+
+test('Winding Normalization: Inverted hole subpaths (CCW -> CW) for complex fonts (Someflowers)', () => {
+  const ccwHoleCurves = [
+    new THREE.LineCurve(new THREE.Vector2(3, 3), new THREE.Vector2(7, 3)),
+    new THREE.LineCurve(new THREE.Vector2(7, 3), new THREE.Vector2(7, 7)),
+    new THREE.LineCurve(new THREE.Vector2(7, 7), new THREE.Vector2(3, 7)),
+    new THREE.LineCurve(new THREE.Vector2(3, 7), new THREE.Vector2(3, 3))
+  ];
+  const rawArea = getCurvesArea(ccwHoleCurves);
+  assert.ok(rawArea > 0, 'Initial hole curves are CCW');
+
+  // Winding normalization: Hole paths in Three.js MUST be Clockwise (rawArea < 0)
+  const normalizedHoleCurves = rawArea > 0 ? reverseCurves(ccwHoleCurves) : ccwHoleCurves;
+  const normArea = getCurvesArea(normalizedHoleCurves);
+  assert.ok(normArea < 0, 'Normalized hole curves are strictly Clockwise (CW)');
 });
