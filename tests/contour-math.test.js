@@ -188,3 +188,37 @@ test('Winding Normalization: Inverted hole subpaths (CCW -> CW) for complex font
   const normArea = getCurvesArea(normalizedHoleCurves);
   assert.ok(normArea < 0, 'Normalized hole curves are strictly Clockwise (CW)');
 });
+
+test('Even-Odd Nesting Classification: 2-level nested island shapes (Root -> Hole -> Island) for boxed fonts (Cute Notes)', () => {
+  const outerBoxPts = [{x:0,y:0}, {x:20,y:0}, {x:20,y:20}, {x:0,y:20}];
+  const cutoutPts = [{x:2,y:2}, {x:18,y:2}, {x:18,y:18}, {x:2,y:18}];
+  const letterPts = [{x:5,y:5}, {x:15,y:5}, {x:15,y:15}, {x:5,y:15}];
+
+  const subpaths = [
+    { name: 'outerBox', pts: outerBoxPts },
+    { name: 'cutout', pts: cutoutPts },
+    { name: 'letterC', pts: letterPts }
+  ];
+
+  function pointInPoly(pt, vs) {
+    let x = pt.x, y = pt.y, inside = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+      let xi = vs[i].x, yi = vs[i].y, xj = vs[j].x, yj = vs[j].y;
+      let intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  const depths = subpaths.map((sp, idx) => {
+    let depth = 0;
+    for (let m = 0; m < idx; m++) {
+      if (pointInPoly(sp.pts[0], subpaths[m].pts)) depth++;
+    }
+    return { name: sp.name, depth, isSolid: depth % 2 === 0 };
+  });
+
+  assert.strictEqual(depths[0].isSolid, true, 'Outer box is depth 0 (solid root shape)');
+  assert.strictEqual(depths[1].isSolid, false, 'Box cutout is depth 1 (inner hole)');
+  assert.strictEqual(depths[2].isSolid, true, 'Letter C inside cutout is depth 2 (solid island shape)');
+});

@@ -11,7 +11,6 @@ import {
   createBaseplateShape,
   mirrorShape2DX,
   translateCurve2D,
-  pointInPolygon,
   offsetPathCurves,
   generateScrewThreadPlug,
   reverseCurves,
@@ -571,6 +570,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
     // Export STL Button
     const btnExport = document.getElementById('btn-export-stl');
     if (btnExport) btnExport.addEventListener('click', exportSTL);
+
   }
 
   let updateMeshFrameId = null;
@@ -972,7 +972,7 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
       const frameShape = createTextFrameShape(textWidth, textHeight, params.textFrame, params.textFrameThick, params.textFramePad);
       if (frameShape) {
         const frameDepth = params.extrudeDepth;
-        const frameGeometry = new THREE.ExtrudeGeometry(frameShape, { depth: frameDepth, bevelEnabled: false });
+        const frameGeometry = new THREE.ExtrudeGeometry(frameShape, { depth: frameDepth, curveSegments: 32, bevelEnabled: false });
         const textMaterial = new THREE.MeshStandardMaterial({
           color: new THREE.Color(params.textColor),
           roughness: 0.3,
@@ -1022,75 +1022,18 @@ window.CUSTOM_PROXY_URL = 'https://3d-text-generator.alan-rosenthal.workers.dev'
         }
       });
 
-      const subPaths = shapePath.subPaths;
-      if (subPaths && subPaths.length > 0) {
-        const pathInfos = [];
-        subPaths.forEach(sp => {
-          const pts = sp.getPoints(12);
-          if (pts && pts.length >= 3) {
-            if (pts[0].distanceTo(pts[pts.length - 1]) < 1e-4) {
-              pts.pop();
-            }
-            if (pts.length >= 3) {
-              const rawArea = THREE.ShapeUtils.area(pts);
-              const absArea = Math.abs(rawArea);
-              if (absArea > 0.01) {
-                pathInfos.push({
-                  subPath: sp,
-                  points: pts,
-                  rawArea: rawArea,
-                  area: absArea
-                });
-              }
-            }
-          }
+      const charShapes = shapePath.toShapes(true);
+
+      if (textThickness !== 0) {
+        charShapes.forEach(s => {
+          s.curves = offsetPathCurves(s.curves, textThickness);
+          s.holes.forEach(h => {
+            h.curves = offsetPathCurves(h.curves, -textThickness);
+          });
         });
-
-        if (pathInfos.length > 0) {
-          pathInfos.sort((a, b) => b.area - a.area);
-          const charRootShapes = [];
-
-          for (let k = 0; k < pathInfos.length; k++) {
-            const pInfo = pathInfos[k];
-            let parent = null;
-
-            const nPts = pInfo.points.length;
-            const candidatePts = [
-              pInfo.points[0],
-              pInfo.points[Math.floor(nPts / 3)],
-              pInfo.points[Math.floor(2 * nPts / 3)]
-            ];
-
-            for (let m = 0; m < charRootShapes.length; m++) {
-              const rShape = charRootShapes[m];
-              if (candidatePts.some(pt => pointInPolygon(pt, rShape.points))) {
-                parent = rShape;
-                break;
-              }
-            }
-
-            if (parent) {
-              const holePath = new THREE.Path();
-              const hCurves = textThickness !== 0 ? offsetPathCurves(pInfo.subPath.curves, -textThickness) : pInfo.subPath.curves;
-              // Hole paths in Three.js MUST be Clockwise (rawArea < 0)
-              holePath.curves = pInfo.rawArea > 0 ? reverseCurves(hCurves) : hCurves;
-              parent.shape.holes.push(holePath);
-            } else {
-              const shape = new THREE.Shape();
-              const sCurves = textThickness !== 0 ? offsetPathCurves(pInfo.subPath.curves, textThickness) : pInfo.subPath.curves;
-              // Root Outer Shapes in Three.js MUST be Counter-Clockwise (rawArea > 0)
-              shape.curves = pInfo.rawArea < 0 ? reverseCurves(sCurves) : sCurves;
-              charRootShapes.push({
-                shape: shape,
-                points: pInfo.points
-              });
-            }
-          }
-
-          charRootShapes.forEach(r => shapes.push(r.shape));
-        }
       }
 
+      charShapes.forEach(s => shapes.push(s));
       currentX += advanceWidth;
     }
 

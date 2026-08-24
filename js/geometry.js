@@ -43,23 +43,10 @@ export function createTextFrameShape(textWidth, textHeight, frameType = 'none', 
     const ryInner = (textHeight / 2) + framePadding;
     const rInner = Math.max(rxInner, ryInner);
 
-    const segments = 64;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * Math.PI * 2;
-      const x = Math.cos(theta) * rOuter;
-      const y = Math.sin(theta) * rOuter;
-      if (i === 0) shape.moveTo(x, y);
-      else shape.lineTo(x, y);
-    }
+    shape.absarc(0, 0, rOuter, 0, Math.PI * 2, false);
 
     const holePath = new THREE.Path();
-    for (let i = segments; i >= 0; i--) {
-      const theta = (i / segments) * Math.PI * 2;
-      const x = Math.cos(theta) * rInner;
-      const y = Math.sin(theta) * rInner;
-      if (i === segments) holePath.moveTo(x, y);
-      else holePath.lineTo(x, y);
-    }
+    holePath.absarc(0, 0, rInner, 0, Math.PI * 2, true);
     shape.holes.push(holePath);
   } else {
     // Rectangle frame
